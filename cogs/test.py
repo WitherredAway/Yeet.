@@ -223,23 +223,27 @@ class Test(commands.Cog):
     async def get_unclaimed(self):   
         pk = pd.read_csv('https://docs.google.com/spreadsheets/d/1-FBEjg5p6WxICTGLn0rvqwSdk30AmZqZgOOwsI2X1a4/export?gid=0&format=csv', index_col=0, header=6)
     
-        msg = "\n".join(sorted(list(pk["Name"][pk["Person in Charge"].isna()])))
-        
+        msg = "\n".join(sorted(list(pk["Name"][pk["Person in Charge"].isna()])))  
         return msg
         
     # The task that updates the unclaimed pokemon gist
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=5)
     async def update_unclaimed_pokemon(self):
-        github = Github(self.bot)
-        
         content = await self.get_unclaimed()
         amount = len(content.split("\n"))
+        try:
+            if self.amount == amount:
+                return
+        except AttributeError:
+            self.amount = amount
+
+        github = Github(self.bot)
         date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
         
         gist_url = await github.edit_gist(
             self.UCP_GIST_ID,
             content,
-            description="%s unclaimed pokemon as of %s GMT (Updates every 30 minutes)" % (amount, date),
+            description="%s unclaimed pokemon as of %s GMT (Checks every 5 minutes, and updates only if there is a change)" % (amount, date),
             filename=self.UCP_FILENAME,
         )
         await self.bot.update_channel.send("Updated! %s (%s)" % (gist_url, amount))
