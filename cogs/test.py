@@ -230,16 +230,19 @@ class Test(commands.Cog):
     # The task that updates the unclaimed pokemon gist
     @tasks.loop(minutes=30)
     async def update_unclaimed_pokemon(self):
-        content = await self.get_unclaimed()
         github = Github(self.bot)
+        
+        content = await self.get_unclaimed()
+        amount = len(content.split("\n"))
         date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
+        
         gist_url = await github.edit_gist(
             self.UCP_GIST_ID,
             content,
-            description="Unclaimed pokemon as of %s GMT (Updates every 30 minutes)" % date,
+            description="%s unclaimed pokemon as of %s GMT (Updates every 30 minutes)" % (amount, date),
             filename=self.UCP_FILENAME,
         )
-        await self.bot.update_channel.send("Updated! %s (%s)" % (gist_url, len(content.split("\n"))))
+        await self.bot.update_channel.send("Updated! %s (%s)" % (gist_url, amount))
 
     @update_unclaimed_pokemon.before_loop
     async def before_update(self):
