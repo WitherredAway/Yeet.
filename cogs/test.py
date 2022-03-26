@@ -2,6 +2,8 @@ import typing
 import os
 import yarl
 import asyncio
+import aiohttp
+import json
 import datetime
 
 import discord
@@ -11,6 +13,9 @@ import pandas as pd
 import textwrap
 
 from .utils.paginator import BotPages
+
+
+GITHUB_API = 'https://api.github.com'
 
 
 def is_in_botdev():
@@ -35,7 +40,7 @@ class Github:
             'Authorization': 'token %s' % self.access_token,
         }
 
-        req_url = yarl.URL('https://api.github.com') / url
+        req_url = yarl.URL(GITHUB_API) / url
         
         if headers is not None and isinstance(headers, dict):
             hdrs.update(headers)
@@ -231,12 +236,12 @@ class Test(commands.Cog):
     async def update_unclaimed_pokemon(self):
         content = await self.get_unclaimed()
         amount = len(content.split("\n"))
-        try:
+        if hasattr(self, "amount"):
             if self.amount == amount:
                 return
-        except AttributeError:
+        else:
             self.amount = amount
-
+            
         github = Github(self.bot)
         date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
         
