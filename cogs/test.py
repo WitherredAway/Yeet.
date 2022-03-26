@@ -249,4 +249,5 @@ class Test(commands.Cog):
         await self.bot.wait_until_ready()
 
 async def setup(bot):
+    pass
     await bot.add_cog(Test(bot))
