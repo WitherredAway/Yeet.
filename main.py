@@ -4,6 +4,7 @@ import requests
 import json
 import datetime
 import humanize
+import aiohttp
 
 from keep_alive import keep_alive
 from discord.ext import commands
@@ -26,9 +27,12 @@ class Bot(commands.Bot):
         self.uptime = datetime.datetime.utcnow()
         self.activity = discord.Game(f"{self.PREFIXES[0]}help")
         self.status = discord.Status.online
-
+        
     async def setup_hook(self):
+        self.update_channel = await self.fetch_channel(909105827850387481)
         self.LOG_CHANNEL = await self.fetch_channel(os.getenv("logCHANNEL"))
+        self.session = aiohttp.ClientSession(loop=self.loop)
+        
         # self.load_extension("jishaku")
         for filename in os.listdir("./cogs"):
             if filename.endswith(".py"):

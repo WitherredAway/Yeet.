@@ -23,6 +23,9 @@ lxml = "^4.8.0"
 humanize = "^4.0.0"
 "mystbin.py" = "^2.2.0"
 python-benedict = "^0.25.0"
+yarl = "^1.7.2"
+aiohttp = "^3.8.1"
+discord = "^1.7.3"
 
 [tool.poetry.dev-dependencies]
 

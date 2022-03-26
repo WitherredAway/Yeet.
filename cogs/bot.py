@@ -103,7 +103,6 @@ class Bot(commands.Cog):
         await log_ch.send(embed=em)
 
     # prefix
-    @commands.has_permissions(manage_messages=True)
     @commands.command(
         name="prefix",
         aliases=("prefixes",),
