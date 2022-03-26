@@ -26,7 +26,7 @@ class Github:
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.access_token = os.getenv("githubTOKEN")
-        self._req_lock = asyncio.Lock(loop=self.bot.loop)
+        self._req_lock = asyncio.Lock()
 
     async def github_request(self, method, url, *, params=None, data=None, headers=None):
         hdrs = {
