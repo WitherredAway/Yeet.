@@ -10,7 +10,7 @@ certifi==2021.10.8
 charset-normalizer==2.0.12
 click==8.0.4
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@fbb8803779373357e274e1540b368365fd9d8074
-discord.py @ git+https://github.com/Rapptz/discord.py@a4676804ec15d3a9c67a76563918f866cf1b49b9
+discord.py @ git+https://github.com/Rapptz/discord.py
 durations-nlp==1.0.1
 emojis==0.6.0
 Flask==2.0.3
