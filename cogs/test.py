@@ -239,6 +239,8 @@ class Test(commands.Cog):
         if hasattr(self, "amount"):
             if self.amount == amount:
                 return
+            else:
+                self.amount = amount
         else:
             self.amount = amount
             
