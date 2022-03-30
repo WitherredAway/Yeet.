@@ -238,14 +238,19 @@ class Test(commands.Cog):
         pkm_list = []
         for idx, pkm_idx in enumerate(pkm_indexes):
             pokename = df.loc[pkm_idx, "Name"]
+            comment = df.loc[pkm_idx, "Comment"] if str(df.loc[pkm_idx, "Comment"]) != "nan" else None
             link = df.loc[pkm_idx, "Complete Imgur Link"]
             location = f'{self.url[:-24]}/edit#gid=0&range=E{pkm_idx+7}'
 
-            text = f"""
-    1. `{pokename}` - [Sheet location]({location}) - [Imgur]({link})
-            """
-            pkm_list.append(text)
-
+            comment_text = f'''(Marked for review)
+        - Comment: {comment}
+            '''
+            text = f'''
+    1. `{pokename}` {comment_text if comment else ""}
+        - [Sheet location]({location})
+        - [Imgur]({link})
+            '''
+        pkm_list.append(text)
         format_list = "\n".join(pkm_list)
         return_text = f"""- **{user}** [{len(pkm_list)}]
 {format_list}"""
@@ -254,7 +259,7 @@ class Test(commands.Cog):
     async def get_unreviewed(self):
         pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
         
-        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"].isna()) & (pk["Comment"].isna())]
+        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"].isna())]
 
         df_grouped = df.groupby("Person's ID")
 
@@ -319,9 +324,7 @@ class Test(commands.Cog):
             files,
             description="""%s unclaimed pokemon
 
-
 %s unreviewed pokemon
-
 
 As of %s GMT (Checks every 5 minutes, and updates only if there is a change)
             """ % (self.unc_amount, self.unr_amount, self.unr_date),
