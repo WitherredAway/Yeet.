@@ -270,7 +270,6 @@ class Test(commands.Cog):
             
             df_list.append(msg)
 
-        print([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
         total_count = len([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
         
         return df_list, total_count
