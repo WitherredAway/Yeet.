@@ -1,6 +1,7 @@
 from flask import Flask
 from threading import Thread
 import random
+import os
 
 
 app = Flask("")
@@ -16,5 +17,8 @@ def run():
 
 
 def keep_alive():
+    # Make it so it only runs on replit
+    if not os.getenv("REPL_ID"):
+        return
     t = Thread(target=run)
     t.start()
