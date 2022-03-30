@@ -324,7 +324,9 @@ class Test(commands.Cog):
             files,
             description="""%s unclaimed pokemon
 
+
 %s unreviewed pokemon
+
 
 As of %s GMT (Checks every 5 minutes, and updates only if there is a change)
             """ % (self.unc_amount, self.unr_amount, self.unr_date),
