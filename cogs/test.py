@@ -30,7 +30,7 @@ def is_in_botdev():
 class Github:
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.access_token = os.getenv("githubTOKEN")
+        self.access_token = os.getenv("WgithubTOKEN")
         self._req_lock = asyncio.Lock()
 
     async def github_request(self, method, url, *, params=None, data=None, headers=None):
@@ -88,16 +88,15 @@ class Github:
     async def edit_gist(
         self,
         gist_id: str,
-        content: str,
+        files: typing.Dict,
         *,
         description: str = None,
-        filename: str = "output.txt",
     ):
         headers = {
             "Accept": "application/vnd.github.v3+json",
         }
 
-        data = {"files": {filename: {"content": content}}}
+        data = {"files": files}
         
         if description:
             data["description"] = description
@@ -210,12 +209,17 @@ class Test(commands.Cog):
         self.hidden = True
 
         self.UCP_GIST_ID = "2206767186c249f17b07ad9a299f068c"
-        self.UCP_FILENAME = "Unclaimed Pokemon.txt"
-
-        self.update_unclaimed_pokemon.start()
+        self.unc_filename = "Unclaimed Pokemon.txt"
+        self.unr_filename = "Unreviewed Pokemon.md"
+        
+        self.unc = self.unr = True
+        
+        self.url = 'https://docs.google.com/spreadsheets/d/1-FBEjg5p6WxICTGLn0rvqwSdk30AmZqZgOOwsI2X1a4/export?gid=0&format=csv'
+        
+        self.update_pokemon.start()
 
     def cog_unload(self):
-        self.update_unclaimed_pokemon.cancel()
+        self.update_pokemon.cancel()
     
     display_emoji = "🧪"
 
@@ -225,37 +229,107 @@ class Test(commands.Cog):
         view = GistView(ctx)
         await ctx.send(view=view)
 
-    async def get_unclaimed(self):   
-        pk = pd.read_csv('https://docs.google.com/spreadsheets/d/1-FBEjg5p6WxICTGLn0rvqwSdk30AmZqZgOOwsI2X1a4/export?gid=0&format=csv', index_col=0, header=6)
-    
-        msg = "\n".join(sorted(list(pk["Name"][pk["Person in Charge"].isna()])))  
-        return msg
+    def get_unclaimed(self):
+        pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
+        df_list = sorted(list(pk["Name"][pk["Person in Charge"].isna()]))
+        return df_list
+
+    def format_unreviewed(self, df, user, pkm_indexes):
+        pkm_list = []
+        for idx, pkm_idx in enumerate(pkm_indexes):
+            pokename = df.loc[pkm_idx, "Name"]
+            link = df.loc[pkm_idx, "Complete Imgur Link"]
+            location = f'{self.url[:-24]}/edit#gid=0&range=E{pkm_idx+7}'
+
+            text = f"""
+    1. `{pokename}` - [Sheet location]({location}) - [Imgur]({link})
+            """
+            pkm_list.append(text)
+
+        format_list = "\n".join(pkm_list)
+        return_text = f"""- **{user}** [{len(pkm_list)}]
+{format_list}"""
+        return return_text
+
+    async def get_unreviewed(self):
+        pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
+        
+        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"].isna()) & (pk["Comment"].isna())]
+
+        df_grouped = df.groupby("Person's ID")
+
+        df_list = []
+        for _id, pkm_idx in df_grouped.groups.items():
+            user = await self.bot.fetch_user(int(_id))
+            msg = self.format_unreviewed(df, user, pkm_idx)
+            
+            df_list.append(msg)
+
+        total_count = len([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
+        
+        return df_list, total_count
         
     # The task that updates the unclaimed pokemon gist
     @tasks.loop(minutes=5)
-    async def update_unclaimed_pokemon(self):
-        content = await self.get_unclaimed()
-        amount = len(content.split("\n"))
-        if hasattr(self, "amount"):
-            if self.amount == amount:
-                return
+    async def update_pokemon(self):
+        updated = []
+        unc_list = self.get_unclaimed()
+        unc_amount = len(unc_list)
+        if hasattr(self, "unc_amount"):
+            if self.unc_amount == unc_amount:
+                self.unc = False
             else:
-                self.amount = amount
+                self.unc_amount = unc_amount
         else:
-            self.amount = amount
+            self.unc_amount = unc_amount
+
+        unr_list, unr_amount = await self.get_unreviewed()
+        if hasattr(self, "unr_amount"):
+            if self.unr_amount == unr_amount:
+                self.unr = False
+            else:
+                self.unr_amount = unr_amount
+        else:
+            self.unr_amount = unr_amount
+        
+        files = {}
+        if self.unc:
+            updated.append(f"`Unclaimed pokemon` **({unc_amount})**")
+            unc_content = "\n".join(unc_list)
+            self.unc_date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
+            files[self.unc_filename] = {
+                'filename': self.unc_filename,
+                'content': unc_content
+            }
+        if self.unr:
+            updated.append(f"`Unreviewed pokemon` **({unr_amount})**")
+            unr_content = "\n".join(unr_list)
+            self.unr_date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
+            files[self.unr_filename] = {
+                'filename': self.unr_filename,
+                'content': unr_content
+            }
+        if not (self.unc or self.unr):
+            return
             
         github = Github(self.bot)
-        date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
         
         gist_url = await github.edit_gist(
             self.UCP_GIST_ID,
-            content,
-            description="%s unclaimed pokemon as of %s GMT (Checks every 5 minutes, and updates only if there is a change)" % (amount, date),
-            filename=self.UCP_FILENAME,
-        )
-        await self.bot.update_channel.send("Updated! %s (%s)" % (gist_url, amount))
+            files,
+            description="""%s unclaimed pokemon
 
-    @update_unclaimed_pokemon.before_loop
+
+%s unreviewed pokemon
+
+
+As of %s GMT (Checks every 5 minutes, and updates only if there is a change)
+            """ % (self.unc_amount, self.unr_amount, self.unr_date),
+        )
+        update_msg = "Updated %s! (%s)" % (" and ".join(updated), gist_url)
+        await self.bot.update_channel.send(update_msg)
+
+    @update_pokemon.before_loop
     async def before_update(self):
         await self.bot.wait_until_ready()
 

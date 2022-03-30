@@ -26,6 +26,8 @@ python-benedict = "^0.25.0"
 yarl = "^1.7.2"
 aiohttp = "^3.8.1"
 discord = "^1.7.3"
+numpy = "^1.22.3"
+requests = "^2.27.1"
 
 [tool.poetry.dev-dependencies]
 
