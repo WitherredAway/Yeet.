@@ -250,7 +250,7 @@ class Test(commands.Cog):
         - [Sheet location]({location})
         - [Imgur]({link})
             '''
-        pkm_list.append(text)
+            pkm_list.append(text)
         format_list = "\n".join(pkm_list)
         return_text = f"""- **{user}** [{len(pkm_list)}]
 {format_list}"""
@@ -259,7 +259,7 @@ class Test(commands.Cog):
     async def get_unreviewed(self):
         pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
         
-        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"].isna())]
+        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"] != "Approved")]
 
         df_grouped = df.groupby("Person's ID")
 
@@ -270,6 +270,7 @@ class Test(commands.Cog):
             
             df_list.append(msg)
 
+        print([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
         total_count = len([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
         
         return df_list, total_count
