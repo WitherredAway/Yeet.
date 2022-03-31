@@ -209,10 +209,13 @@ class Test(commands.Cog):
         self.hidden = True
 
         self.UCP_GIST_ID = "2206767186c249f17b07ad9a299f068c"
-        self.unc_filename = "Unclaimed Pokemon.txt"
+        self.unc_filename = "Unclaimed Pokemon.md"
         self.unr_filename = "Unreviewed Pokemon.md"
+        self.ml_filename = "Claimed missing link.md"
         
-        self.unc = self.unr = True
+        self.unc = True
+        self.unr = True
+        self.ml = True
         
         self.url = 'https://docs.google.com/spreadsheets/d/1-FBEjg5p6WxICTGLn0rvqwSdk30AmZqZgOOwsI2X1a4/export?gid=0&format=csv'
         
@@ -229,10 +232,21 @@ class Test(commands.Cog):
         view = GistView(ctx)
         await ctx.send(view=view)
 
-    def get_unclaimed(self):
-        pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
-        df_list = sorted(list(pk["Name"][pk["Person in Charge"].isna()]))
-        return df_list
+    def validate_unclaimed(self):
+        pk = self.pk
+        unc_list = sorted(list(pk["Name"][pk["Person in Charge"].isna()]))
+        
+        unc_amount = len(unc_list)
+        if hasattr(self, "unc_amount"):
+            if self.unc_amount == unc_amount:
+                self.unc = False
+                return False
+            else:
+                self.unc_amount = unc_amount
+        else:
+            self.unc_amount = unc_amount
+
+        return unc_list, unc_amount
 
     def format_unreviewed(self, df, user, pkm_indexes):
         pkm_list = []
@@ -256,13 +270,7 @@ class Test(commands.Cog):
 {format_list}"""
         return return_text
 
-    async def get_unreviewed(self):
-        pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
-        
-        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"] != "Approved")]
-
-        df_grouped = df.groupby("Person's ID")
-
+    async def get_unreviewed(self, df, df_grouped):
         df_list = []
         for _id, pkm_idx in df_grouped.groups.items():
             user = await self.bot.fetch_user(int(_id))
@@ -270,64 +278,108 @@ class Test(commands.Cog):
             
             df_list.append(msg)
 
-        total_count = len([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
-        
-        return df_list, total_count
+        return df_list
+
+    async def validate_unreviewed(self):
+        pk = self.pk
+        df = pk.loc[(~pk["Person's ID"].isna()) & (~pk["Complete Imgur Link"].isna()) & (pk["Approval Status"] != "Approved")]
+
+        df_grouped = df.groupby("Person's ID")
+
+        unr_amount = len([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
+
+        if hasattr(self, "unr_amount"):
+            if self.unr_amount == unr_amount:
+                self.unr = False
+                return False
+            else:
+                unr_list = await self.get_unreviewed(df, df_grouped)
+                self.unr_amount = unr_amount
+        else:
+            unr_list = await self.get_unreviewed(df, df_grouped)
+            self.unr_amount = unr_amount
+
+        return unr_list, unr_amount
+
+    async def get_missing_link(self, df, df_grouped):
+        df_list = []
+        mention_list = []
+        for _id, pkm_idx in df_grouped.groups.items():
+            pkm_list = df.loc[pkm_idx, "Name"]
+            formatted_list = list(map(lambda x: f'`{x}`', pkm_list))
+            msg = f'- **{await self.bot.fetch_user(int(_id))}** [{len(pkm_list)}] - {", ".join(formatted_list)}'
+            df_list.append(msg)
+            mention_msg = f'- **{(await self.bot.fetch_user(int(_id))).mention}** [{len(pkm_list)}] - {", ".join(formatted_list)}'
+            mention_list.append(mention_msg)
+
+        return df_list, mention_list
+
+    async def validate_missing_link(self):
+        pk = self.pk
+        df = pk.loc[(~pk["Person's ID"].isna()) & (pk["Complete Imgur Link"].isna())]
+
+        df_grouped = df.groupby("Person's ID")
+
+        ml_amount = len([pkm_id for pkm_idx in df_grouped.groups.values() for pkm_id in pkm_idx])
+
+        if hasattr(self, "ml_amount"):
+            if self.ml_amount == ml_amount:
+                self.ml = False
+                return False
+            else:
+                ml_list, ml_list_mention = await self.get_missing_link(df, df_grouped)
+                self.ml_amount = ml_amount
+        else:
+            ml_list, ml_list_mention = await self.get_missing_link(df, df_grouped)
+            self.ml_amount = ml_amount
+            
+        return ml_list, ml_list_mention, ml_amount
         
     # The task that updates the unclaimed pokemon gist
     @tasks.loop(minutes=5)
     async def update_pokemon(self):
+        self.pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
+        date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
         updated = []
-        unc_list = self.get_unclaimed()
-        unc_amount = len(unc_list)
-        if hasattr(self, "unc_amount"):
-            if self.unc_amount == unc_amount:
-                self.unc = False
-            else:
-                self.unc_amount = unc_amount
-        else:
-            self.unc_amount = unc_amount
-
-        unr_list, unr_amount = await self.get_unreviewed()
-        if hasattr(self, "unr_amount"):
-            if self.unr_amount == unr_amount:
-                self.unr = False
-            else:
-                self.unr_amount = unr_amount
-        else:
-            self.unr_amount = unr_amount
         
+        unc_list, unc_amount = self.validate_unclaimed()
+        
+        unr_list, unr_amount = await self.validate_unreviewed()
+
+        ml_list, ml_list_mention, ml_amount = await self.validate_missing_link()
+
         files = {}
         if self.unc:
             updated.append(f"`Unclaimed pokemon` **({unc_amount})**")
-            unc_content = "\n".join(unc_list)
-            self.unc_date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
+            unc_content = "## Count: %s\n## Pokemon: \n%s" % (unc_amount, "\n".join(unc_list) if unc_list else "None")
             files[self.unc_filename] = {
                 'filename': self.unc_filename,
                 'content': unc_content
             }
         if self.unr:
             updated.append(f"`Unreviewed pokemon` **({unr_amount})**")
-            unr_content = "\n".join(unr_list)
-            self.unr_date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
+            unr_content = "## Count: %s\n## Users: \n%s" % (unr_amount, "\n".join(unr_list) if unr_list else "None")
             files[self.unr_filename] = {
                 'filename': self.unr_filename,
                 'content': unr_content
             }
-        if not (self.unc or self.unr):
+        if self.ml:
+            updated.append(f"`Missing link pokemon` **({ml_amount})**")
+            ml_content = "## Count: %s\n## Users: \n%s\n\n\n## Copy & paste to ping:\n```\n%s\n```" % (ml_amount, "\n".join(ml_list) if ml_list else "None", "\n".join(ml_list_mention) if ml_list else "None")
+            files[self.ml_filename] = {
+                'filename': self.ml_filename,
+                'content': ml_content
+            }
+        if not (self.unc or self.unr or self.ml):
             return
             
         github = Github(self.bot)
-        
+
+        description = f"{self.ml_amount} claimed pokemon with missing links, {self.unc_amount} unclaimed pokemon and {self.unr_amount} unreviewed pokemon - As of {date} GMT (Checks every 5 minutes, and updates only if there is a change)"
         gist_url = await github.edit_gist(
             self.UCP_GIST_ID,
             files,
-            description="""%s unclaimed pokemon
-
-%s unreviewed pokemon
-
-As of %s GMT (Checks every 5 minutes, and updates only if there is a change)
-            """ % (self.unc_amount, self.unr_amount, self.unr_date),
+            description=description,
         )
         update_msg = "Updated %s! (%s)" % (" and ".join(updated), gist_url)
         await self.bot.update_channel.send(update_msg)
