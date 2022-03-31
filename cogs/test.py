@@ -379,7 +379,8 @@ class Test(commands.Cog):
             files,
             description=description,
         )
-        update_msg = "Updated %s! (%s)" % (" and ".join(updated), gist_url)
+        update_msg = f'''Updated {" and ".join(updated)}!
+({gist_url})'''
         await self.bot.update_channel.send(update_msg)
 
     @update_pokemon.before_loop
