@@ -213,10 +213,6 @@ class Test(commands.Cog):
         self.unr_filename = "Unreviewed Pokemon.md"
         self.ml_filename = "Claimed missing link.md"
         
-        self.unc = True
-        self.unr = True
-        self.ml = True
-        
         self.url = 'https://docs.google.com/spreadsheets/d/1-FBEjg5p6WxICTGLn0rvqwSdk30AmZqZgOOwsI2X1a4/export?gid=0&format=csv'
         
         self.update_pokemon.start()
@@ -231,22 +227,6 @@ class Test(commands.Cog):
     async def gist(self, ctx):
         view = GistView(ctx)
         await ctx.send(view=view)
-
-    def validate_unclaimed(self):
-        pk = self.pk
-        unc_list = sorted(list(pk["Name"][pk["Person in Charge"].isna()]))
-        
-        unc_amount = len(unc_list)
-        if hasattr(self, "unc_amount"):
-            if self.unc_amount == unc_amount:
-                self.unc = False
-                return False
-            else:
-                self.unc_amount = unc_amount
-        else:
-            self.unc_amount = unc_amount
-
-        return unc_list, unc_amount
 
     def format_unreviewed(self, df, user, pkm_indexes):
         pkm_list = []
@@ -270,6 +250,23 @@ class Test(commands.Cog):
 {format_list}"""
         return return_text
 
+    def validate_unclaimed(self):
+        pk = self.pk
+        unc_list = sorted(list(pk["Name"][pk["Person in Charge"].isna()]))
+        unc_list = [f'1. {pkm}' for pkm in unc_list]
+        
+        unc_amount = len(unc_list)
+        if hasattr(self, "unc_amount"):
+            if self.unc_amount == unc_amount:
+                self.unc = False
+                return False, unc_amount
+            else:
+                self.unc_amount = unc_amount
+        else:
+            self.unc_amount = unc_amount
+
+        return unc_list, unc_amount
+
     async def get_unreviewed(self, df, df_grouped):
         df_list = []
         for _id, pkm_idx in df_grouped.groups.items():
@@ -291,7 +288,7 @@ class Test(commands.Cog):
         if hasattr(self, "unr_amount"):
             if self.unr_amount == unr_amount:
                 self.unr = False
-                return False
+                return False, unr_amount
             else:
                 unr_list = await self.get_unreviewed(df, df_grouped)
                 self.unr_amount = unr_amount
@@ -325,7 +322,7 @@ class Test(commands.Cog):
         if hasattr(self, "ml_amount"):
             if self.ml_amount == ml_amount:
                 self.ml = False
-                return False
+                return False, False, ml_amount
             else:
                 ml_list, ml_list_mention = await self.get_missing_link(df, df_grouped)
                 self.ml_amount = ml_amount
@@ -341,13 +338,14 @@ class Test(commands.Cog):
         self.pk = pd.read_csv(self.url , index_col=0, header=6, dtype={"Person's ID": object})
         date = (datetime.datetime.utcnow()).strftime('%I:%M%p, %d/%m/%Y')
         updated = []
-        
+
+        self.unc = True
         unc_list, unc_amount = self.validate_unclaimed()
-        
+        self.unr = True
         unr_list, unr_amount = await self.validate_unreviewed()
-
+        self.ml = True
         ml_list, ml_list_mention, ml_amount = await self.validate_missing_link()
-
+        
         files = {}
         if self.unc:
             updated.append(f"`Unclaimed pokemon` **({unc_amount})**")
