@@ -1,15 +1,17 @@
-import discord
 import re
 import itertools
-import emojis
 import copy
 import asyncio
+from typing import Optional, Union, Literal
 
-from typing import Optional, Union
+import numpy as np
+import pandas as pd
+import discord
+import emojis
 from discord.ext import commands, tasks
 from .utils.utils import invert_dict
 
-row_alpha = [
+ROW_ICONS = (
     "🇦",
     "🇧",
     "🇨",
@@ -27,9 +29,9 @@ row_alpha = [
     "🇴",
     "🇵",
     "🇶",
-]
+)
 
-col_alpha = [
+COLUMN_ICONS = (
     "0️⃣",
     "1️⃣",
     "2️⃣",
@@ -47,7 +49,156 @@ col_alpha = [
     "<:14:920679132260618260>",
     "<:15:920679200854253578>",
     "<:16:920679238414266408>",
-]
+)
+
+get_cursor = {
+    "🟥": "🔴",
+    "🟧": "🟠",
+    "🟨": "🟡",
+    "🟩": "🟢",
+    "🟦": "🔵",
+    "🟪": "🟣",
+    "🟫": "🟤",
+    "⬛": "⚫",
+    "⬜": "⚪",
+}
+
+
+def make_embed(ctx, board: pd.DataFrame, bg, rows, cols):
+    embed = discord.Embed(title=f"{ctx.author}'s drawing board.")
+    u200b = "\u200b"
+    embed.description = "".join((bg, *cols, "\n"))
+    embed.description += "\n".join([f"{rows[idx]}{u200b.join(cell)}" for idx, cell in enumerate(board)])
+    embed.set_footer(
+        text=(
+            f"The board looks wack? Try decreasing its size! Do {ctx.clean_prefix}help draw for more info."
+            if all((len(rows) >= 10, len(cols) >= 10))
+            else f"You can customize this board! Do {ctx.clean_prefix}help draw for more info."
+        )
+    )
+    return embed
+
+
+def make_board(bg: str, height: int, width: int):
+    board = np.full((height, width), bg)
+    row_labels = ROW_ICONS[:height]
+    col_labels = COLUMN_ICONS[:width]
+    
+    try:
+        board[int(height / 2), int(width / 2)] = get_cursor[board[int(height / 2), int(width / 2)]]
+    except KeyError:
+        pass
+    return board, row_labels, col_labels
+
+
+class Draw(commands.Cog):
+    """Category with commands to bring out your inner artist."""
+
+    def __init__(self, bot):
+        self.bot = bot
+
+    display_emoji = "🖌️"
+
+    @commands.bot_has_permissions(external_emojis=True)
+    @commands.group(
+        name="draw",
+        aliases=["drawing", "paint", "painting"],
+        case_insensitive=True,
+        brief="Make pixel art on discord!",
+        help="wip",
+        description="Command which you can use to make pixel art using buttons and dropdown menus.",
+        invoke_without_command=True,
+    )
+    async def draw(
+        self,
+        ctx,
+        height: Optional[int] = 9,
+        width: Optional[int] = 9,
+        background: Literal["🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "🟫", "⬛", "⬜"] = "⬜",
+    ):
+        bg = background
+        if height < 5 or height > 17:
+            return await ctx.send("Height must be atleast 5 and atmost 17")
+        
+        if width < 5 or width > 17:
+            return await ctx.send("Width must be atleast 5 and atmost 17")
+
+        tboard, row_list, col_list = make_board(bg, height, width)
+        view = DrawButtons(ctx, tboard, row_list, col_list, bg)
+
+        response = await ctx.send(
+            embed=make_embed(ctx, tboard, bg, row_list, col_list)#, view=view
+        )
+        view.response = response
+        await view.wait()
+
+    @draw.command(
+        name="copy",
+        brief="Copy a drawing.",
+        help="Copy a drawing from an embed by replying to with message ID and channel.",
+        description="Allows you to copy a drawing that was done with the `draw` command.",
+    )
+    async def copy(
+        self,
+        ctx,
+        message: Union[int, discord.Message] = None,
+        message_channel: Union[int, discord.TextChannel] = None,
+    ):
+        if ctx.message.reference:
+            message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        elif message is not None:
+            if message_channel is None:
+                message_channel = ctx.channel
+            else:
+                message_channel = await ctx.bot.fetch_channel(
+                    message_channel
+                    if type(message_channel) == int
+                    else message_channel.id
+                )
+            try:
+                message = await message_channel.fetch_message(
+                    message if type(message) == int else message.id
+                )
+            except:
+                return await ctx.send(
+                    "Please provide a valid message ID or reply to a message!"
+                )
+
+        if all(
+            (
+                message.embeds,
+                "drawing board" in message.embeds[0].title,
+                message.author == ctx.bot.user,
+            )
+        ):
+            value = message.embeds[0].fields[0].value
+            name = message.embeds[0].fields[0].name
+            tboard = []
+            for line in value.split("\n"):
+                tboard.append(line[3:].split("\u200b"))
+            bg = name[0]
+        else:
+            return await ctx.send(
+                "Invalid message, make sure it's a draw embed and a message from the bot."
+            )
+
+        row_list = ROW_ICONS[: len(tboard)]
+        col_list = COLUMN_ICONS[: len(tboard[0])]
+        try:
+            tboard[int(len(row_list) / 2)][
+                int(len(col_list) / 2)
+            ] = get_cursor[
+                tboard[int(len(row_list) / 2)][int(len(col_list) / 2)]
+            ]
+        except KeyError:
+            pass
+        view = DrawButtons(ctx, tboard, row_list, col_list, bg)
+
+        response = await ctx.send(
+            embed=make_embed(ctx, tboard, bg, row_list, col_list), view=view
+        )
+        view.response = response
+        await view.wait()
 
 
 class DrawButtons(discord.ui.View):
@@ -74,7 +225,7 @@ class DrawButtons(discord.ui.View):
         self.final_cell = (None, None)
         self.final_row = self.final_cell[0]
         self.final_col = self.final_cell[1]
-        self.inv_cur_cle = invert_dict(self.cur_cle)
+        self.inv_cur_cle = invert_dict(get_cursor)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user != self.ctx.author:
@@ -154,7 +305,7 @@ class DrawButtons(discord.ui.View):
                 await interaction.edit_original_message(view=self)
             except discord.HTTPException as e:
                 await interaction.channel.send(content=e.text.split(": ")[-1])
-                select.options.pop(-1)
+                select.options = [] #.pop(-1)
                 await interaction.edit_original_message(view=self)
                 await asyncio.sleep(0.5)
             await res.delete()
@@ -185,18 +336,6 @@ class DrawButtons(discord.ui.View):
         }
         row = conv[row_key] - self.cursor_row
         return row
-
-    cur_cle = {
-        "🟥": "🔴",
-        "🟧": "🟠",
-        "🟨": "🟡",
-        "🟩": "🟢",
-        "🟦": "🔵",
-        "🟪": "🟣",
-        "🟫": "🟤",
-        "⬛": "⚫",
-        "⬜": "⚪",
-    }
 
     def find_key(self, value):
         return self.inv_cur_cle.get(value, value)
@@ -291,7 +430,7 @@ class DrawButtons(discord.ui.View):
         self.board = board
         self.clear_cursors()
         try:
-            self.board[self.cursor_row][self.cursor_col] = self.cur_cle[
+            self.board[self.cursor_row][self.cursor_col] = get_cursor[
                 self.board[self.cursor_row][self.cursor_col]
             ]
         except KeyError:
@@ -385,7 +524,7 @@ class DrawButtons(discord.ui.View):
     )
     async def erase(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        await self.edit_draw(interaction, self.cur_cle[self.bg])
+        await self.edit_draw(interaction, get_cursor[self.bg])
 
     @discord.ui.button(
         emoji="<:left:920895993145327628>", style=discord.ButtonStyle.blurple
@@ -518,146 +657,6 @@ class DrawButtons(discord.ui.View):
         await res.delete()
         await asyncio.sleep(0.5)
         await msg.delete()
-
-
-def make_embed(ctx, board, bg, row, col):
-    embed = discord.Embed(title=f"{ctx.author}'s drawing board.")
-    val = ""
-    for idx, i in enumerate(board):
-        u200b = "\u200b"
-        val += f"\n{row[idx]}  {u200b.join(i)}"
-    embed.add_field(name=f"{bg}  {''.join(col)}\u200b", value=val, inline=False)
-    embed.set_footer(
-        text=f"Tip: You can customize this board! Do {ctx.prefix}help draw for more info."
-    )
-    return embed
-
-
-def make_board(bg, height, width):
-    col = [bg for i in range(height)]
-    tboard = [col[:] for i in range(width)]
-    row_list = row_alpha[:height]
-    col_list = col_alpha[:width]
-
-    try:
-        tboard[int(len(row_list) / 2)][int(len(col_list) / 2)] = DrawButtons.cur_cle[
-            tboard[int(len(row_list) / 2)][int(len(col_list) / 2)]
-        ]
-    except KeyError:
-        tboard = tboard
-    return tboard, row_list, col_list
-
-
-class Draw(commands.Cog):
-    """Category with commands to bring out your inner artist."""
-
-    def __init__(self, bot):
-        self.bot = bot
-
-    display_emoji = "🖌️"
-
-    @commands.bot_has_permissions(external_emojis=True)
-    @commands.group(
-        name="draw",
-        aliases=["drawing", "paint", "painting"],
-        case_insensitive=True,
-        brief="Make pixel art on discord!",
-        help="wip",
-        description="Command which you can use to make pixel art using buttons and dropdown menus.",
-        invoke_without_command=True,
-    )
-    async def draw(
-        self,
-        ctx,
-        height: Optional[int] = 9,
-        width: Optional[int] = 9,
-        background: str = "⬜",
-    ):
-        bg = background
-        bg_list = ["🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "🟫", "⬛", "⬜"]
-        if bg not in bg_list:
-            return await ctx.send(
-                f"Please include a proper background. Available backgrounds:\n{', '.join(bg_list)}"
-            )
-        if any((height < 5, height > 17, width < 5, width > 17)):
-            return await ctx.send("Min and max height and width are 5 and 17!")
-
-        tboard, row_list, col_list = make_board(bg, height, width)
-        view = DrawButtons(ctx, tboard, row_list, col_list, bg)
-
-        response = await ctx.send(
-            embed=make_embed(ctx, tboard, bg, row_list, col_list), view=view
-        )
-        view.response = response
-        await view.wait()
-
-    @draw.command(
-        name="copy",
-        brief="Copy a drawing.",
-        help="Copy a drawing from an embed by replying to with message ID and channel.",
-        description="Allows you to copy a drawing that was done with the `draw` command.",
-    )
-    async def copy(
-        self,
-        ctx,
-        message: Union[int, discord.Message] = None,
-        message_channel: Union[int, discord.TextChannel] = None,
-    ):
-        if ctx.message.reference:
-            message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        elif message is not None:
-            if message_channel is None:
-                message_channel = ctx.channel
-            else:
-                message_channel = await ctx.bot.fetch_channel(
-                    message_channel
-                    if type(message_channel) == int
-                    else message_channel.id
-                )
-            try:
-                message = await message_channel.fetch_message(
-                    message if type(message) == int else message.id
-                )
-            except:
-                return await ctx.send(
-                    "Please provide a valid message ID or reply to a message!"
-                )
-
-        if all(
-            (
-                message.embeds,
-                "drawing board" in message.embeds[0].title,
-                message.author == ctx.bot.user,
-            )
-        ):
-            value = message.embeds[0].fields[0].value
-            name = message.embeds[0].fields[0].name
-            tboard = []
-            for line in value.split("\n"):
-                tboard.append(line[3:].split("\u200b"))
-            bg = name[0]
-        else:
-            return await ctx.send(
-                "Invalid message, make sure it's a draw embed and a message from the bot."
-            )
-
-        row_list = row_alpha[: len(tboard)]
-        col_list = col_alpha[: len(tboard[0])]
-        try:
-            tboard[int(len(row_list) / 2)][
-                int(len(col_list) / 2)
-            ] = DrawButtons.cur_cle[
-                tboard[int(len(row_list) / 2)][int(len(col_list) / 2)]
-            ]
-        except KeyError:
-            pass
-        view = DrawButtons(ctx, tboard, row_list, col_list, bg)
-
-        response = await ctx.send(
-            embed=make_embed(ctx, tboard, bg, row_list, col_list), view=view
-        )
-        view.response = response
-        await view.wait()
 
 
 async def setup(bot):
