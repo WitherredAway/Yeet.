@@ -80,7 +80,7 @@ class Developer(commands.Cog):
     )
     async def _load(self, ctx: commands.Context, cog: str):
         try:
-            await bot.load_extension(f"cogs.{cog}")
+            await self.bot.load_extension(f"cogs.{cog}")
         except commands.ExtensionNotFound:
             message = f":x: Cog `{cog}` not found."
         except commands.ExtensionAlreadyLoaded:
@@ -104,7 +104,7 @@ class Developer(commands.Cog):
             message = ":x: Cannot unload this cog"
         else:
             try:
-                await bot.unload_extension(f"cogs.{cog}")
+                await self.bot.unload_extension(f"cogs.{cog}")
             except commands.ExtensionNotLoaded:
                 message = f":x: Cog `{cog}` not found."
             except Exception as e:
