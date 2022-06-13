@@ -69,9 +69,11 @@ def make_board(bg: str, height: int, width: int):
     board = np.full((height, width), bg, dtype="object")
     row_labels = ROW_ICONS[:height]
     col_labels = COLUMN_ICONS[:width]
-    
+
     try:
-        board[int(height / 2), int(width / 2)] = get_cursor[board[int(height / 2), int(width / 2)]]
+        board[int(height / 2), int(width / 2)] = get_cursor[
+            board[int(height / 2), int(width / 2)]
+        ]
     except KeyError:
         pass
     return board, row_labels, col_labels
@@ -105,16 +107,14 @@ class Draw(commands.Cog):
         bg = background
         if height < 5 or height > 17:
             return await ctx.send("Height must be atleast 5 and atmost 17")
-        
+
         if width < 5 or width > 17:
             return await ctx.send("Width must be atleast 5 and atmost 17")
 
         board, row_list, col_list = make_board(bg, height, width)
         view = DrawButtons(bg, board, row_list, col_list, ctx=ctx)
 
-        response = await ctx.send(
-            embed=view.embed, view=view
-        )
+        response = await ctx.send(embed=view.embed, view=view)
         view.response = response
         await view.wait()
 
@@ -171,18 +171,14 @@ class Draw(commands.Cog):
         row_list = ROW_ICONS[: len(board)]
         col_list = COLUMN_ICONS[: len(board[0])]
         try:
-            board[int(len(row_list) / 2)][
-                int(len(col_list) / 2)
-            ] = get_cursor[
+            board[int(len(row_list) / 2)][int(len(col_list) / 2)] = get_cursor[
                 board[int(len(row_list) / 2)][int(len(col_list) / 2)]
             ]
         except KeyError:
             pass
         view = DrawButtons(bg, board, row_list, col_list, ctx=ctx)
 
-        response = await ctx.send(
-            embed=view.embed, view=view
-        )
+        response = await ctx.send(embed=view.embed, view=view)
         view.response = response
         await view.wait()
 
@@ -220,7 +216,12 @@ class DrawButtons(discord.ui.View):
         u200b = "\u200b"
         embed.add_field(
             name=f'{self.bg}  {"".join(self.col_list)}{u200b}',
-            value="\n".join([f'{self.row_list[idx]}  {u200b.join(cell)}' for idx, cell in enumerate(self.board)])
+            value="\n".join(
+                [
+                    f"{self.row_list[idx]}  {u200b.join(cell)}"
+                    for idx, cell in enumerate(self.board)
+                ]
+            ),
         )
         embed.set_footer(
             text=(
@@ -317,7 +318,7 @@ class DrawButtons(discord.ui.View):
             await msg.delete()
         else:
             self.cursor = select.values[0]
-            
+
     def cursor_conv(self, row_key):
         conv = {
             "A": 0,

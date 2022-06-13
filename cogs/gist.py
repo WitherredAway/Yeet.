@@ -434,7 +434,7 @@ class Gist(commands.Cog):
     async def gist(self, ctx, gist_url_or_id: Optional[str] = None):
         client = self.bot.gists_client
         gist = None
-        
+
         if gist_url_or_id is not None:
             if validators.url(str(gist_url_or_id)):
                 gist_url_or_id = gist_url_or_id.split("/")[
