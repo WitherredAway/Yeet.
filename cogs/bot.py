@@ -114,7 +114,7 @@ class Bot(commands.Cog):
     async def _prefix(self, ctx: commands.Context):
         n = "\n> "
         await ctx.send(
-            f"My prefixes are:\n> {n.join(get_prefix(ctx.bot, ctx)[1:])}\nThey cannot be changed."
+            f"My prefixes are:\n> {n.join((self.bot.user.mention, *self.bot.PREFIXES))}\nThey cannot be changed."
         )
 
     # ping

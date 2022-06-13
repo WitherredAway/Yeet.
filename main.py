@@ -14,17 +14,16 @@ from keep_alive import keep_alive
 def get_prefix(bot, message):
     prefixes = bot.PREFIXES
     if not message.guild:
-        return prefixes[0]
+        return bot.PREFIX
     return commands.when_mentioned_or(*prefixes)(bot, message)
 
 
 class Bot(commands.Bot):
     PREFIXES = json.loads(os.getenv("PREFIXES"))
     PREFIX = PREFIXES[0]
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
+        
         self.uptime = datetime.datetime.utcnow()
         self.activity = discord.Game(f"{self.PREFIXES[0]}help")
         self.status = discord.Status.online
