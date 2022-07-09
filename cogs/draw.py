@@ -1,14 +1,9 @@
-import re
-import itertools
-import copy
 import asyncio
 import typing
 from typing import Optional, Union, Literal
 
 import numpy as np
-import pandas as pd
 import discord
-import emojis
 from discord.ext import commands, tasks
 from .utils.utils import invert_dict
 
@@ -64,6 +59,47 @@ get_cursor = {
     "⬜": "⚪",
 }
 
+ABC = "ABCDEFGHIJKLMNOPQ"
+NUM = (
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+)
+
+conv = {
+    "A": 0,
+    "B": 1,
+    "C": 2,
+    "D": 3,
+    "E": 4,
+    "F": 5,
+    "G": 6,
+    "H": 7,
+    "I": 8,
+    "J": 9,
+    "K": 10,
+    "L": 11,
+    "M": 12,
+    "N": 13,
+    "O": 14,
+    "P": 15,
+    "Q": 16,
+}
+
 
 def make_board(bg: str, height: int, width: int):
     board = np.full((height, width), bg, dtype="object")
@@ -90,7 +126,7 @@ class Draw(commands.Cog):
     @commands.bot_has_permissions(external_emojis=True)
     @commands.group(
         name="draw",
-        aliases=["drawing", "paint", "painting"],
+        aliases=("drawing", "paint", "painting"),
         case_insensitive=True,
         brief="Make pixel art on discord!",
         help="wip",
@@ -162,6 +198,7 @@ class Draw(commands.Cog):
             board = []
             for line in value.split("\n"):
                 board.append(line[3:].split("\u200b"))
+            board = np.array(board, dtype="object")
             bg = name[0]
         else:
             return await ctx.send(
@@ -171,8 +208,8 @@ class Draw(commands.Cog):
         row_list = ROW_ICONS[: len(board)]
         col_list = COLUMN_ICONS[: len(board[0])]
         try:
-            board[int(len(row_list) / 2)][int(len(col_list) / 2)] = get_cursor[
-                board[int(len(row_list) / 2)][int(len(col_list) / 2)]
+            board[int(len(row_list) / 2), int(len(col_list) / 2)] = get_cursor[
+                board[int(len(row_list) / 2), int(len(col_list) / 2)]
             ]
         except KeyError:
             pass
@@ -185,7 +222,7 @@ class Draw(commands.Cog):
 
 class DrawButtons(discord.ui.View):
     def __init__(self, bg, board, row_list, col_list, *, ctx: commands.Context):
-        super().__init__(timeout=300)
+        super().__init__(timeout=600)
         self.bg = bg
         self.initial_board = board
         self.board = self.initial_board.copy()
@@ -196,7 +233,7 @@ class DrawButtons(discord.ui.View):
         self.ctx = ctx
         self.response = None
         self.cells = [(self.cursor_row, self.cursor_col)]
-        self.cursor = self.board[self.cursor_row][self.cursor_col]
+        self.cursor = self.board[self.cursor_row, self.cursor_col]
         self.cursor_row_max = row_list.index(row_list[-1])
         self.cursor_col_max = col_list.index(col_list[-1])
         self.initial_cell = (None, None)
@@ -250,9 +287,7 @@ class DrawButtons(discord.ui.View):
                 disabled=True,
             )
         )
-        self.board[self.cursor_row][self.cursor_col] = self.find_key(
-            self.board[self.cursor_row][self.cursor_col]
-        )
+        self.clear_cursors()
         embed = self.embed
         await self.response.edit(embed=embed, view=self)
         self.stop()
@@ -285,13 +320,6 @@ class DrawButtons(discord.ui.View):
                 content="Please send a single emoji you want to add to your palette. e.g. 😎"
             )
 
-            def first_emoji(self, sentence):
-                return [
-                    word
-                    for word in sentence.split()
-                    if str(word.encode("unicode-escape"))[2] == "\\"
-                ]
-
             def check(m):
                 return m.author == interaction.user and len(m.content.split(" ")) == 1
 
@@ -299,6 +327,12 @@ class DrawButtons(discord.ui.View):
                 msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
             except asyncio.TimeoutError:
                 return await interaction.channel.send(content="Timed out.")
+            try:
+                int(msg.content)
+            except ValueError:
+                pass
+            else:
+                msg.content = f"_:{msg.content}"
             emoji_check = discord.PartialEmoji.from_str(msg.content)
             emoji = (
                 msg.content
@@ -320,81 +354,68 @@ class DrawButtons(discord.ui.View):
             self.cursor = select.values[0]
 
     def cursor_conv(self, row_key):
-        conv = {
-            "A": 0,
-            "B": 1,
-            "C": 2,
-            "D": 3,
-            "E": 4,
-            "F": 5,
-            "G": 6,
-            "H": 7,
-            "I": 8,
-            "J": 9,
-            "K": 10,
-            "L": 11,
-            "M": 12,
-            "N": 13,
-            "O": 14,
-            "P": 15,
-            "Q": 16,
-        }
         row = conv[row_key] - self.cursor_row
         return row
 
-    def find_key(self, value):
+    def un_cursor(self, value):
         return self.inv_get_cursor.get(value, value)
+
+    def draw_cursor(self, row: Optional[int] = None, col: Optional[int] = None):
+        try:
+            self.board[row if row else self.cursor_row, col if col else self.cursor_col] = get_cursor[
+                self.board[self.cursor_row, self.cursor_col]
+            ]
+        except KeyError:
+            pass
 
     def clear_cursors(self):
         for cell_tuple in self.cells:
             try:
-                self.board[cell_tuple[0]][cell_tuple[1]] = self.find_key(
-                    self.board[cell_tuple[0]][cell_tuple[1]]
+                self.board[cell_tuple] = self.un_cursor(
+                    self.board[cell_tuple]
                 )
-            except:
-                pass
+            except KeyError:
+                continue
         self.cells = [(self.cursor_row, self.cursor_col)]
 
     async def move_cursor(
         self, interaction: discord.Interaction, row_move: int = 0, col_move: int = 0
     ):
         if self.fill is not True:
-            self.board[self.cursor_row][self.cursor_col] = self.find_key(
-                self.board[self.cursor_row][self.cursor_col]
+            self.board[self.cursor_row, self.cursor_col] = self.un_cursor(
+                self.board[self.cursor_row, self.cursor_col]
             )
-        self.cursor_row += row_move
-        self.cursor_col += col_move
+        self.cursor_row += row_move if self.cursor_row + row_move <= self.cursor_row_max else 0
+        self.cursor_col += col_move if self.cursor_col + col_move <= self.cursor_col_max else 0
         if self.fill is not True:
             self.cells = [(self.cursor_row, self.cursor_col)]
-        if self.fill is True:
+        elif self.fill is True:
             self.final_cell = (self.cursor_row, self.cursor_col)
             self.final_row = self.final_cell[0]
             self.final_col = self.final_cell[1]
-            self.cells.append(self.final_cell)
-            for row in range(
-                min(self.initial_row, self.final_row),
-                max(self.initial_row, self.final_row) + 1,
-            ):
+
+            self.clear_cursors()
+            self.cells = [
+                (row, col) 
                 for col in range(
                     min(self.initial_col, self.final_col),
                     max(self.initial_col, self.final_col) + 1,
-                ):
-                    self.cells.append((row, col))
-
+                ) for row in range(
+                     min(self.initial_row, self.final_row),
+                     max(self.initial_row, self.final_row) + 1,
+                 )
+            ]
+            await interaction.channel.send(self.cells)
+            
         if self.auto is True:
             await self.edit_draw(interaction, self.cursor)
 
         for cell_tuple in self.cells:
-            try:
-                self.board[cell_tuple[0]][cell_tuple[1]] = get_cursor[
-                    self.board[cell_tuple[0]][cell_tuple[1]]
-                ]
-            except KeyError:
-                continue
+            self.draw_cursor(*cell_tuple)
         embed = self.embed
         if self.auto is not True:
             await interaction.edit_original_message(embed=embed)
-
+        
     async def edit_draw(self, interaction, draw=None, corner=None):
         if all(cell == draw for cell in self.cells):
             return
@@ -432,6 +453,7 @@ class DrawButtons(discord.ui.View):
         self.cursor_col = int(len(self.col_list) / 2)
         self.board, _, _ = make_board(self.bg, len(self.col_list), len(self.row_list))
         self.clear_cursors()
+        self.draw_cursor()
         embed = self.embed
         await interaction.edit_original_message(embed=embed, view=self)
 
@@ -463,12 +485,7 @@ class DrawButtons(discord.ui.View):
         elif self.fill == True:
             self.fill = False
             self.clear_cursors()
-            try:
-                self.board[self.cursor_row][self.cursor_col] = get_cursor[
-                    self.board[self.cursor_row][self.cursor_col]
-                ]
-            except KeyError:
-                pass
+            self.draw_cursor()
             self.fill_bucket.style = discord.ButtonStyle.grey
         await self.edit_draw(interaction)
         await interaction.edit_original_message(view=self)
@@ -621,26 +638,7 @@ class DrawButtons(discord.ui.View):
         cell = msg.content.upper()
         if len(cell) != 2 and len(cell) != 3:
             return await self.ctx.send("Min and max length of cell must be 2 and 3")
-        ABC = "ABCDEFGHIJKLMNOPQ"
-        NUM = [
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
-            "10",
-            "11",
-            "12",
-            "13",
-            "14",
-            "15",
-            "16",
-        ]
+        
         row_key = cell[0]
         col_key = cell[1:]
         if (
