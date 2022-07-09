@@ -408,8 +408,7 @@ class DrawButtons(discord.ui.View):
                     max(self.initial_row, self.final_row) + 1,
                 )
             ]
-            await interaction.channel.send(self.cells)
-
+            
         if self.auto is True:
             await self.edit_draw(interaction, self.cursor)
 
