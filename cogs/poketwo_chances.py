@@ -143,13 +143,11 @@ class PoketwoChances(commands.Cog):
     async def all(self, ctx):
         pkm_df = self.pk.loc[self.pk["catchable"] > 0]
         pkm_df = pkm_df.loc[:, ["id", "name.en", "catchable", "abundance"]]
-        
+
         ALL_GIST = "https://gist.github.com/1bc525b05f4cd52555a2a18c331e0cf9"
 
         async with ctx.channel.typing():
-            result = await self.format_msg(
-                "All", pkm_df, gist_link=ALL_GIST
-            )
+            result = await self.format_msg("All", pkm_df, gist_link=ALL_GIST)
         await ctx.send(result)
 
     @chance.command(

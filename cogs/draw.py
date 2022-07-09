@@ -107,9 +107,9 @@ def make_board(bg: str, height: int, width: int):
     col_labels = COLUMN_ICONS[:width]
 
     try:
-        board[int(height / 2),
-              int(width / 2)] = get_cursor[board[int(height / 2),
-                                                 int(width / 2)]]
+        board[int(height / 2), int(width / 2)] = get_cursor[
+            board[int(height / 2), int(width / 2)]
+        ]
     except KeyError:
         pass
     return board, row_labels, col_labels
@@ -117,6 +117,7 @@ def make_board(bg: str, height: int, width: int):
 
 class Draw(commands.Cog):
     """Category with commands to bring out your inner artist."""
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -129,8 +130,7 @@ class Draw(commands.Cog):
         case_insensitive=True,
         brief="Make pixel art on discord!",
         help="wip",
-        description=
-        "Command which you can use to make pixel art using buttons and dropdown menus.",
+        description="Command which you can use to make pixel art using buttons and dropdown menus.",
         invoke_without_command=True,
     )
     async def draw(
@@ -157,10 +157,8 @@ class Draw(commands.Cog):
     @draw.command(
         name="copy",
         brief="Copy a drawing.",
-        help=
-        "Copy a drawing from an embed by replying to with message ID and channel.",
-        description=
-        "Allows you to copy a drawing that was done with the `draw` command.",
+        help="Copy a drawing from an embed by replying to with message ID and channel.",
+        description="Allows you to copy a drawing that was done with the `draw` command.",
     )
     async def copy(
         self,
@@ -169,27 +167,32 @@ class Draw(commands.Cog):
         message_channel: Union[int, discord.TextChannel] = None,
     ):
         if ctx.message.reference:
-            message = await ctx.channel.fetch_message(
-                ctx.message.reference.message_id)
+            message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
         elif message is not None:
             if message_channel is None:
                 message_channel = ctx.channel
             else:
                 message_channel = await ctx.bot.fetch_channel(
-                    message_channel if type(message_channel) ==
-                    int else message_channel.id)
+                    message_channel
+                    if type(message_channel) == int
+                    else message_channel.id
+                )
             try:
                 message = await message_channel.fetch_message(
-                    message if type(message) == int else message.id)
+                    message if type(message) == int else message.id
+                )
             except:
                 return await ctx.send(
-                    "Please provide a valid message ID or reply to a message!")
+                    "Please provide a valid message ID or reply to a message!"
+                )
 
-        if all((
+        if all(
+            (
                 message.embeds,
                 "drawing board" in message.embeds[0].title,
                 message.author == ctx.bot.user,
-        )):
+            )
+        ):
             name = message.embeds[0].fields[0].name
             value = message.embeds[0].fields[0].value
             board = []
@@ -202,13 +205,12 @@ class Draw(commands.Cog):
                 "Invalid message, make sure it's a draw embed and a message from the bot."
             )
 
-        row_list = ROW_ICONS[:len(board)]
-        col_list = COLUMN_ICONS[:len(board[0])]
+        row_list = ROW_ICONS[: len(board)]
+        col_list = COLUMN_ICONS[: len(board[0])]
         try:
-            board[int(len(row_list) / 2),
-                  int(len(col_list) /
-                      2)] = get_cursor[board[int(len(row_list) / 2),
-                                             int(len(col_list) / 2)]]
+            board[int(len(row_list) / 2), int(len(col_list) / 2)] = get_cursor[
+                board[int(len(row_list) / 2), int(len(col_list) / 2)]
+            ]
         except KeyError:
             pass
         view = DrawButtons(bg, board, row_list, col_list, ctx=ctx)
@@ -219,8 +221,7 @@ class Draw(commands.Cog):
 
 
 class DrawButtons(discord.ui.View):
-    def __init__(self, bg, board, row_list, col_list, *,
-                 ctx: commands.Context):
+    def __init__(self, bg, board, row_list, col_list, *, ctx: commands.Context):
         super().__init__(timeout=600)
         self.bg = bg
         self.initial_board = board
@@ -252,20 +253,23 @@ class DrawButtons(discord.ui.View):
         u200b = "\u200b"
         embed.add_field(
             name=f'{self.bg}  {"".join(self.col_list)}{u200b}',
-            value="\n".join([
-                f"{self.row_list[idx]}  {u200b.join(cell)}"
-                for idx, cell in enumerate(self.board)
-            ]),
+            value="\n".join(
+                [
+                    f"{self.row_list[idx]}  {u200b.join(cell)}"
+                    for idx, cell in enumerate(self.board)
+                ]
+            ),
         )
-        embed.set_footer(text=(
-            f"The board looks wack? Try decreasing its size! Do {self.ctx.clean_prefix}help draw for more info."
-            if all((len(self.row_list) >= 10, len(self.col_list) >= 10)) else
-            f"You can customize this board! Do {self.ctx.clean_prefix}help draw for more info."
-        ))
+        embed.set_footer(
+            text=(
+                f"The board looks wack? Try decreasing its size! Do {self.ctx.clean_prefix}help draw for more info."
+                if all((len(self.row_list) >= 10, len(self.col_list) >= 10))
+                else f"You can customize this board! Do {self.ctx.clean_prefix}help draw for more info."
+            )
+        )
         return embed
 
-    async def interaction_check(self,
-                                interaction: discord.Interaction) -> bool:
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user != self.ctx.author:
             await interaction.response.send_message(
                 f"This instance does not belong to you, use the `{self.ctx.command}` command to create your own instance.",
@@ -278,11 +282,11 @@ class DrawButtons(discord.ui.View):
         self.clear_items()
         self.add_item(
             discord.ui.Button(
-                label=
-                f"This interaction has timed out. Use {self.ctx.prefix}{self.ctx.command} for a new one.",
+                label=f"This interaction has timed out. Use {self.ctx.prefix}{self.ctx.command} for a new one.",
                 style=discord.ButtonStyle.gray,
                 disabled=True,
-            ))
+            )
+        )
         self.clear_cursors()
         embed = self.embed
         await self.response.edit(embed=embed, view=self)
@@ -302,28 +306,25 @@ class DrawButtons(discord.ui.View):
             discord.SelectOption(label="Brown", emoji="🟫", value="🟤"),
             discord.SelectOption(label="Black", emoji="⬛", value="⚫"),
             discord.SelectOption(label="White", emoji="⬜", value="⚪"),
-            discord.SelectOption(label="Emoji",
-                                 emoji="<:emojismiley:920902406336815104>",
-                                 value="emoji"),
+            discord.SelectOption(
+                label="Emoji", emoji="<:emojismiley:920902406336815104>", value="emoji"
+            ),
         ],
     )
-    async def colour_picker(self, interaction: discord.Interaction,
-                            select: discord.ui.Select):
+    async def colour_picker(
+        self, interaction: discord.Interaction, select: discord.ui.Select
+    ):
         await interaction.response.defer()
         if select.values[0] == "emoji":
             res = await interaction.channel.send(
-                content=
-                "Please send a single emoji you want to add to your palette. e.g. 😎"
+                content="Please send a single emoji you want to add to your palette. e.g. 😎"
             )
 
             def check(m):
-                return m.author == interaction.user and len(
-                    m.content.split(" ")) == 1
+                return m.author == interaction.user and len(m.content.split(" ")) == 1
 
             try:
-                msg = await self.ctx.bot.wait_for("message",
-                                                  timeout=30,
-                                                  check=check)
+                msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
             except asyncio.TimeoutError:
                 return await interaction.channel.send(content="Timed out.")
             try:
@@ -333,11 +334,12 @@ class DrawButtons(discord.ui.View):
             else:
                 msg.content = f"_:{msg.content}"
             emoji_check = discord.PartialEmoji.from_str(msg.content)
-            emoji = (msg.content if emoji_check.is_unicode_emoji() else (
-                f"<{'a' if emoji_check.animated else ''}:_:{emoji_check.id}>"))
-            select.add_option(label=emoji_check.name or emoji,
-                              emoji=emoji,
-                              value=emoji)
+            emoji = (
+                msg.content
+                if emoji_check.is_unicode_emoji()
+                else (f"<{'a' if emoji_check.animated else ''}:_:{emoji_check.id}>")
+            )
+            select.add_option(label=emoji_check.name or emoji, emoji=emoji, value=emoji)
             try:
                 await interaction.edit_original_message(view=self)
             except discord.HTTPException as e:
@@ -358,13 +360,11 @@ class DrawButtons(discord.ui.View):
     def un_cursor(self, value):
         return self.inv_get_cursor.get(value, value)
 
-    def draw_cursor(self,
-                    row: Optional[int] = None,
-                    col: Optional[int] = None):
+    def draw_cursor(self, row: Optional[int] = None, col: Optional[int] = None):
         try:
-            self.board[row if row else self.cursor_row,
-                       col if col else self.cursor_col] = get_cursor[
-                           self.board[self.cursor_row, self.cursor_col]]
+            self.board[
+                row if row else self.cursor_row, col if col else self.cursor_col
+            ] = get_cursor[self.board[self.cursor_row, self.cursor_col]]
         except KeyError:
             pass
 
@@ -376,15 +376,19 @@ class DrawButtons(discord.ui.View):
                 continue
         self.cells = [(self.cursor_row, self.cursor_col)]
 
-    async def move_cursor(self,
-                          interaction: discord.Interaction,
-                          row_move: int = 0,
-                          col_move: int = 0):
+    async def move_cursor(
+        self, interaction: discord.Interaction, row_move: int = 0, col_move: int = 0
+    ):
         if self.fill is not True:
             self.board[self.cursor_row, self.cursor_col] = self.un_cursor(
-                self.board[self.cursor_row, self.cursor_col])
-        self.cursor_row += row_move if self.cursor_row + row_move <= self.cursor_row_max else 0
-        self.cursor_col += col_move if self.cursor_col + col_move <= self.cursor_col_max else 0
+                self.board[self.cursor_row, self.cursor_col]
+            )
+        self.cursor_row += (
+            row_move if self.cursor_row + row_move <= self.cursor_row_max else 0
+        )
+        self.cursor_col += (
+            col_move if self.cursor_col + col_move <= self.cursor_col_max else 0
+        )
         if self.fill is not True:
             self.cells = [(self.cursor_row, self.cursor_col)]
         elif self.fill is True:
@@ -393,13 +397,17 @@ class DrawButtons(discord.ui.View):
             self.final_col = self.final_cell[1]
 
             self.clear_cursors()
-            self.cells = [(row, col) for col in range(
-                min(self.initial_col, self.final_col),
-                max(self.initial_col, self.final_col) + 1,
-            ) for row in range(
-                min(self.initial_row, self.final_row),
-                max(self.initial_row, self.final_row) + 1,
-            )]
+            self.cells = [
+                (row, col)
+                for col in range(
+                    min(self.initial_col, self.final_col),
+                    max(self.initial_col, self.final_col) + 1,
+                )
+                for row in range(
+                    min(self.initial_row, self.final_row),
+                    max(self.initial_row, self.final_row) + 1,
+                )
+            ]
             await interaction.channel.send(self.cells)
 
         if self.auto is True:
@@ -425,20 +433,20 @@ class DrawButtons(discord.ui.View):
 
     # ------ buttons ------
 
-    @discord.ui.button(emoji="<:stop:921864670145552444>",
-                       style=discord.ButtonStyle.danger)
-    async def cancel(self, interaction: discord.Interaction,
-                     button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:stop:921864670145552444>", style=discord.ButtonStyle.danger
+    )
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         self.clear_cursors()
         embed = self.embed
         await interaction.edit_original_message(embed=embed, view=None)
         self.stop()
 
-    @discord.ui.button(emoji="<:clear:922414780193579009>",
-                       style=discord.ButtonStyle.danger)
-    async def clear(self, interaction: discord.Interaction,
-                    button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:clear:922414780193579009>", style=discord.ButtonStyle.danger
+    )
+    async def clear(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         self.auto = False
         self.auto_colour.style = discord.ButtonStyle.gray
@@ -446,27 +454,30 @@ class DrawButtons(discord.ui.View):
         self.fill_bucket.style = discord.ButtonStyle.grey
         self.cursor_row = int(len(self.row_list) / 2)
         self.cursor_col = int(len(self.col_list) / 2)
-        self.board, _, _ = make_board(self.bg, len(self.col_list),
-                                      len(self.row_list))
+        self.board, _, _ = make_board(self.bg, len(self.col_list), len(self.row_list))
         self.clear_cursors()
         self.draw_cursor()
         embed = self.embed
         await interaction.edit_original_message(embed=embed, view=self)
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
-    async def placeholder1(self, interaction: discord.Interaction,
-                           button: discord.ui.Button):
+    async def placeholder1(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
-    async def placeholder2(self, interaction: discord.Interaction,
-                           button: discord.ui.Button):
+    async def placeholder2(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="<:fill:930832869692149790>",
-                       style=discord.ButtonStyle.gray)
-    async def fill_bucket(self, interaction: discord.Interaction,
-                          button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:fill:930832869692149790>", style=discord.ButtonStyle.gray
+    )
+    async def fill_bucket(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         if self.fill == False:
             self.fill = True
@@ -483,70 +494,70 @@ class DrawButtons(discord.ui.View):
         await interaction.edit_original_message(view=self)
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
-    async def placeholder3(self, interaction: discord.Interaction,
-                           button: discord.ui.Button):
+    async def placeholder3(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="<:up_left:920896021700161547>",
-                       style=discord.ButtonStyle.blurple)
-    async def up_right(self, interaction: discord.Interaction,
-                       button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:up_left:920896021700161547>", style=discord.ButtonStyle.blurple
+    )
+    async def up_right(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         row_move = -1
         col_move = -1
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
-    @discord.ui.button(emoji="<:up:920895538696704053>",
-                       style=discord.ButtonStyle.blurple)
-    async def up(self, interaction: discord.Interaction,
-                 button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:up:920895538696704053>", style=discord.ButtonStyle.blurple
+    )
+    async def up(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         row_move = -1
         col_move = 0
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
-    @discord.ui.button(emoji="<:up_right:920895852128657480>",
-                       style=discord.ButtonStyle.blurple)
-    async def up_left(self, interaction: discord.Interaction,
-                      button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:up_right:920895852128657480>", style=discord.ButtonStyle.blurple
+    )
+    async def up_left(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         row_move = -1
         col_move = 1
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
-    async def placeholder5(self, interaction: discord.Interaction,
-                           button: discord.ui.Button):
+    async def placeholder5(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="<:erase:927526530052132894>",
-                       style=discord.ButtonStyle.gray)
-    async def erase(self, interaction: discord.Interaction,
-                    button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:erase:927526530052132894>", style=discord.ButtonStyle.gray
+    )
+    async def erase(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         await self.edit_draw(interaction, get_cursor[self.bg])
 
-    @discord.ui.button(emoji="<:left:920895993145327628>",
-                       style=discord.ButtonStyle.blurple)
-    async def left(self, interaction: discord.Interaction,
-                   button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:left:920895993145327628>", style=discord.ButtonStyle.blurple
+    )
+    async def left(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         row_move = 0
         col_move = -1
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
-    @discord.ui.button(emoji="<:auto_cursor:921352341427470347>",
-                       style=discord.ButtonStyle.gray)
-    async def auto_colour(self, interaction: discord.Interaction,
-                          button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:auto_cursor:921352341427470347>", style=discord.ButtonStyle.gray
+    )
+    async def auto_colour(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         if self.auto == False:
             self.auto = True
@@ -556,66 +567,65 @@ class DrawButtons(discord.ui.View):
             self.auto_colour.style = discord.ButtonStyle.grey
         await interaction.edit_original_message(view=self)
 
-    @discord.ui.button(emoji="<:right:920895888229036102>",
-                       style=discord.ButtonStyle.blurple)
-    async def right(self, interaction: discord.Interaction,
-                    button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:right:920895888229036102>", style=discord.ButtonStyle.blurple
+    )
+    async def right(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         row_move = 0
         col_move = 1
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
-    async def placeholder6(self, interaction: discord.Interaction,
-                           button: discord.ui.Button):
+    async def placeholder6(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="<:middle:920897054060998676>",
-                       style=discord.ButtonStyle.green)
-    async def draw(self, interaction: discord.Interaction,
-                   button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:middle:920897054060998676>", style=discord.ButtonStyle.green
+    )
+    async def draw(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         await self.edit_draw(interaction, self.cursor)
 
-    @discord.ui.button(emoji="<:down_left:920895965987242025>",
-                       style=discord.ButtonStyle.blurple)
-    async def down_left(self, interaction: discord.Interaction,
-                        button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:down_left:920895965987242025>", style=discord.ButtonStyle.blurple
+    )
+    async def down_left(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         row_move = 1
         col_move = -1
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
-    @discord.ui.button(emoji="<:down:920895939030429696>",
-                       style=discord.ButtonStyle.blurple)
-    async def down(self, interaction: discord.Interaction,
-                   button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:down:920895939030429696>", style=discord.ButtonStyle.blurple
+    )
+    async def down(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         row_move = 1
         col_move = 0
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
-    @discord.ui.button(emoji="<:down_right:920895913608765551>",
-                       style=discord.ButtonStyle.blurple)
-    async def down_right(self, interaction: discord.Interaction,
-                         button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:down_right:920895913608765551>", style=discord.ButtonStyle.blurple
+    )
+    async def down_right(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         row_move = 1
         col_move = 1
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
 
-    @discord.ui.button(emoji="<:ABCD:920896121285537832>",
-                       style=discord.ButtonStyle.blurple)
-    async def set_cursor(self, interaction: discord.Interaction,
-                         button: discord.ui.Button):
+    @discord.ui.button(
+        emoji="<:ABCD:920896121285537832>", style=discord.ButtonStyle.blurple
+    )
+    async def set_cursor(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         await interaction.response.defer()
         res = await self.ctx.send(
             'Please type the cell you want to move the cursor to. e.g. "A1", "a8", "A10", etc.'
@@ -625,26 +635,23 @@ class DrawButtons(discord.ui.View):
             return m.author == interaction.user
 
         try:
-            msg = await self.ctx.bot.wait_for("message",
-                                              timeout=30,
-                                              check=check)
+            msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
         except asyncio.TimeoutError:
             return await self.ctx.send("Timed out.")
         cell = msg.content.upper()
         if len(cell) != 2 and len(cell) != 3:
-            return await self.ctx.send(
-                "Min and max length of cell must be 2 and 3")
+            return await self.ctx.send("Min and max length of cell must be 2 and 3")
 
         row_key = cell[0]
         col_key = cell[1:]
-        if (row_key not in ABC[:self.cursor_row_max + 1]
-                or col_key not in NUM[:self.cursor_col_max + 1]):
+        if (
+            row_key not in ABC[: self.cursor_row_max + 1]
+            or col_key not in NUM[: self.cursor_col_max + 1]
+        ):
             return await self.ctx.send(f"Invalid cell provided.")
         row_move = self.cursor_conv(row_key)
         col_move = int(col_key) - self.cursor_col
-        await self.move_cursor(interaction,
-                               row_move=row_move,
-                               col_move=col_move)
+        await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
         await res.delete()
         await asyncio.sleep(0.5)
         await msg.delete()
