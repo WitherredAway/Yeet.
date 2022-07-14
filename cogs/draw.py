@@ -1,7 +1,10 @@
 import asyncio
 import typing
 from typing import Optional, Union, Literal
+import re
+from dataclasses import dataclass 
 
+from emoji import UNICODE_EMOJI
 import numpy as np
 import discord
 from discord.ext import commands, tasks
@@ -220,9 +223,114 @@ class Draw(commands.Cog):
         await view.wait()
 
 
+@dataclass
+class AddedEmoji:
+    status: str
+    name: str
+    emoji: str
+
+
+class DrawSelectMenu(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Red", emoji="🟥", value="🔴"),
+            discord.SelectOption(label="Orange", emoji="🟧", value="🟠"),
+            discord.SelectOption(label="Yellow", emoji="🟨", value="🟡"),
+            discord.SelectOption(label="Green", emoji="🟩", value="🟢"),
+            discord.SelectOption(label="Blue", emoji="🟦", value="🔵"),
+            discord.SelectOption(label="Purple", emoji="🟪", value="🟣"),
+            discord.SelectOption(label="Brown", emoji="🟫", value="🟤"),
+            discord.SelectOption(label="Black", emoji="⬛", value="⚫"),
+            discord.SelectOption(label="White", emoji="⬜", value="⚪"),
+            discord.SelectOption(
+                label="Add Emoji", emoji="<:emojismiley:920902406336815104>", value="emoji"
+            ),
+        ]
+        super().__init__(
+            placeholder="🎨 Palette",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        self.ctx = self.view.ctx
+        select = self
+        if select.values[0] == "emoji":
+            res = await interaction.channel.send(
+                content="Please send a single emoji (default or custom) that you want to add to your palette. e.g. 😎"
+            )
+
+            def check(m):
+                return m.author == interaction.user
+
+            try:
+                msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
+            except asyncio.TimeoutError:
+                return await interaction.channel.send(content="Timed out.")
+
+            sent_emojis = msg.content.split(" ")
+            added_emojis = {}
+            for num, sent_emoji in enumerate(sent_emojis):
+                try:
+                    int(sent_emoji)
+                except ValueError:
+                    pass
+                else:
+                    sent_emoji = f"_:{sent_emoji}"
+                emoji_check = discord.PartialEmoji.from_str(sent_emoji)
+                if emoji_check.is_unicode_emoji():
+                    if emoji_check.name in UNICODE_EMOJI['en']:
+                        emoji = emoji_check.name
+                    else:
+                        added_emojis[sent_emoji] = AddedEmoji(status="Invalid", name=sent_emoji, emoji=sent_emoji)
+                        continue 
+                else:
+                    emoji = f"<{'a' if emoji_check.animated else ''}:_:{emoji_check.id}>"
+                if len(select.options) + len(added_emojis) >= 25:
+                    replaced = select.options.pop(-1)
+                    added_emojis[replaced.label] = AddedEmoji(status="Replaced because limit reached", name=replaced.label, emoji=replaced.value)
+                if emoji in [opt.value for opt in select.options]:
+                    added_emojis[sent_emoji] = AddedEmoji(status="Already exists", name=emoji_check.name, emoji=emoji)
+                    continue
+                added_emojis[sent_emoji] = AddedEmoji(status="Added", name=emoji_check.name, emoji=emoji)
+                
+            for sent_emoji, added_emoji in added_emojis.items():
+                if added_emoji.status == "Added":
+                    option = discord.SelectOption(label=added_emoji.name, emoji=added_emoji.emoji, value=added_emoji.emoji)
+                    select.append_option(option)
+    
+            if len(select.options[10:]) > 0:
+                self.view.cursor = select.options[-1].value
+                self.placeholder = select.options[-1].label 
+            response = [f"{added_emoji.emoji}: {added_emoji.status}" for sent_emoji, added_emoji in added_emojis.items()]
+            
+            try:
+                await interaction.edit_original_message(view=self.view)
+            except discord.HTTPException as error:
+                await interaction.channel.send(content=error)
+                # error_msg = error.text.split(": ")[-1]
+                # await interaction.edit_original_message(view=self.view)
+                # await asyncio.sleep(0.5)
+            await res.delete()
+            await msg.delete()
+            await asyncio.sleep(0.5)
+            await interaction.channel.send("\n".join(response))
+        else:
+            self.view.cursor = select.values[0]
+            self.placeholder = self.view.cursor
+
+
 class DrawButtons(discord.ui.View):
     def __init__(self, bg, board, row_list, col_list, *, ctx: commands.Context):
         super().__init__(timeout=600)
+        children = self.children.copy()
+        self.clear_items()
+        self.add_item(DrawSelectMenu())
+        for item in children:
+            self.add_item(item)
+        
         self.bg = bg
         self.initial_board = board
         self.board = self.initial_board.copy()
@@ -292,67 +400,6 @@ class DrawButtons(discord.ui.View):
         await self.response.edit(embed=embed, view=self)
         self.stop()
 
-    @discord.ui.select(
-        placeholder="🎨 Colour picker",
-        min_values=1,
-        max_values=1,
-        options=[
-            discord.SelectOption(label="Red", emoji="🟥", value="🔴"),
-            discord.SelectOption(label="Orange", emoji="🟧", value="🟠"),
-            discord.SelectOption(label="Yellow", emoji="🟨", value="🟡"),
-            discord.SelectOption(label="Green", emoji="🟩", value="🟢"),
-            discord.SelectOption(label="Blue", emoji="🟦", value="🔵"),
-            discord.SelectOption(label="Purple", emoji="🟪", value="🟣"),
-            discord.SelectOption(label="Brown", emoji="🟫", value="🟤"),
-            discord.SelectOption(label="Black", emoji="⬛", value="⚫"),
-            discord.SelectOption(label="White", emoji="⬜", value="⚪"),
-            discord.SelectOption(
-                label="Emoji", emoji="<:emojismiley:920902406336815104>", value="emoji"
-            ),
-        ],
-    )
-    async def colour_picker(
-        self, interaction: discord.Interaction, select: discord.ui.Select
-    ):
-        await interaction.response.defer()
-        if select.values[0] == "emoji":
-            res = await interaction.channel.send(
-                content="Please send a single emoji you want to add to your palette. e.g. 😎"
-            )
-
-            def check(m):
-                return m.author == interaction.user and len(m.content.split(" ")) == 1
-
-            try:
-                msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
-            except asyncio.TimeoutError:
-                return await interaction.channel.send(content="Timed out.")
-            try:
-                int(msg.content)
-            except ValueError:
-                pass
-            else:
-                msg.content = f"_:{msg.content}"
-            emoji_check = discord.PartialEmoji.from_str(msg.content)
-            emoji = (
-                msg.content
-                if emoji_check.is_unicode_emoji()
-                else (f"<{'a' if emoji_check.animated else ''}:_:{emoji_check.id}>")
-            )
-            select.add_option(label=emoji_check.name or emoji, emoji=emoji, value=emoji)
-            try:
-                await interaction.edit_original_message(view=self)
-            except discord.HTTPException as e:
-                await interaction.channel.send(content=e.text.split(": ")[-1])
-                select.options.pop(-1)
-                await interaction.edit_original_message(view=self)
-                await asyncio.sleep(0.5)
-            await res.delete()
-            await asyncio.sleep(0.5)
-            await msg.delete()
-        else:
-            self.cursor = select.values[0]
-
     def cursor_conv(self, row_key):
         row = conv[row_key] - self.cursor_row
         return row
@@ -364,7 +411,7 @@ class DrawButtons(discord.ui.View):
         try:
             self.board[
                 row if row else self.cursor_row, col if col else self.cursor_col
-            ] = get_cursor[self.board[self.cursor_row, self.cursor_col]]
+            ] = get_cursor[self.board[row if row else self.cursor_row, col if col else self.cursor_col]]
         except KeyError:
             pass
 
