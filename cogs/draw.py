@@ -225,22 +225,17 @@ class Draw(commands.Cog):
 
 
 class AddedEmoji:
-    def __init__(self, *, status: str, emoji: discord.PartialEmoji, sent_emoji: Optional[str] = None):
+    def __init__(self, *, status: str, emoji: discord.PartialEmoji, name: Optional[str] = None, sent_emoji: Optional[str] = None):
         self.status = status
         self.emoji = emoji
+        self.original_name = emoji.name
+        self.name = name or emoji.name
+        self.emoji.name = self.name
         self.sent_emoji = sent_emoji
 
     def __str__(self):
         return str(self.emoji)
         
-    @property
-    def name(self):
-        return self.emoji.name
-
-    @name.setter
-    def name(self, value: str):
-        self.emoji.name = value
-
     @property
     def id(self):
         return self.emoji.id
@@ -283,7 +278,7 @@ class DrawSelectMenu(discord.ui.Select):
         select = self
         if select.values[0] == "emoji":
             resp = await interaction.followup.send(
-                content="Please send a single emoji (default or custom) that you want to add to your palette. e.g. 😎"
+                content="Please send a message containing the emojis you want to add to your palette. E.g. `😎 I like turtles 🐢`"
             )
 
             def check(m):
@@ -303,14 +298,20 @@ class DrawSelectMenu(discord.ui.Select):
             for num, sent_emoji in enumerate(sent_emojis):
                 emoji_check = discord.PartialEmoji.from_str(sent_emoji)
                 emoji = copy.copy(emoji_check)
-                if emoji.is_custom_emoji():
-                    emoji.name = "_"
-                
-                if emoji in [opt.value for opt in select.options]:
-                    added_emojis[emoji.id if emoji.id else emoji.name] = AddedEmoji(status="Already exists", emoji=emoji, sent_emoji=sent_emoji)
+
+                emoji_identifier = emoji.id if emoji.id else emoji.name
+                existing_emojis = [(em.id if em.id else em.name) for em in [opt.emoji for opt in select.options]]
+                if emoji_identifier in existing_emojis:
+                    # This list comprehension mess checks if the emoji
+                    # you're trying to add already exists in the options
+                    # of the select menu. It uses the emoji's ID if it's 
+                    # a custom emoji, otherwise it uses the name which is
+                    # the unicode emoji to see if it already exists in an option
+
+                    added_emojis[emoji_identifier] = AddedEmoji(status="Already exists", emoji=emoji, sent_emoji=sent_emoji)
                     continue
                 
-                added_emojis[emoji.id if emoji.id else emoji.name] = AddedEmoji(status="Added", emoji=emoji, sent_emoji=sent_emoji)
+                added_emojis[emoji_identifier] = AddedEmoji(status="Added", emoji=emoji, name="_" if emoji.is_custom_emoji() else emoji.name, sent_emoji=sent_emoji)
 
             replaced_emojis = {}
             for added_emoji in added_emojis.values():
@@ -324,7 +325,7 @@ class DrawSelectMenu(discord.ui.Select):
                     replaced_emojis[replaced_emoji.id if replaced_emoji.id else replaced_emoji.name] = AddedEmoji.from_option(replaced_option, status=f"Replaced (by {added_emoji}) because limit reached", sent_emoji=replaced_emoji)
                     added_emoji.status = f"Added (replaced {replaced_emoji})"
                 
-                option = discord.SelectOption(label=added_emoji.name, emoji=added_emoji.emoji, value=str(added_emoji.emoji))
+                option = discord.SelectOption(label=added_emoji.original_name, emoji=added_emoji.emoji, value=str(added_emoji.emoji))
                 select.append_option(option)
             
             added_emojis.update(replaced_emojis)
@@ -333,7 +334,7 @@ class DrawSelectMenu(discord.ui.Select):
                 self.view.cursor = select.options[-1].value
                 self.placeholder = select.options[-1].label 
             
-            response = [f"{added_emoji.sent_emoji}: {added_emoji.status}" for added_emoji in added_emojis.values()]
+            response = [f"%s - {added_emoji.status}" % (f"{added_emoji.emoji} ({added_emoji.id})" if added_emoji.sent_emoji in emoji_ids else added_emoji.emoji) for added_emoji in added_emojis.values()]
             
             try:
                 await interaction.edit_original_message(view=self.view)
