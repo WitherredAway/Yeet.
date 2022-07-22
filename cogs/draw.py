@@ -404,6 +404,7 @@ class DrawSelectMenu(discord.ui.Select):
         else:
             self.view.cursor = select.values[0]
             self.placeholder = self.view.cursor
+        await interaction.edit_original_message(embed=self.view.embed)
 
 
 class DrawButtons(discord.ui.View):
@@ -461,6 +462,11 @@ class DrawButtons(discord.ui.View):
                 ]
             ),
         )
+        embed.add_field(
+            name=f'Cursor - {self.cursor}',
+            value=", ".join([ABC[cell_tuple[0]] + str(cell_tuple[1]) for cell_tuple in self.cells])
+        )
+        
         embed.set_footer(
             text=(
                 f"The board looks wack? Try decreasing its size! Do {self.ctx.clean_prefix}help draw for more info."
@@ -480,11 +486,7 @@ class DrawButtons(discord.ui.View):
         return True
 
     async def on_timeout(self):
-        selectmenu = self.children[0]
-        selectmenu.disabled = True
-
-        self.clear_items()
-        self.add_item(selectmenu)
+        self.stop_board()
         self.add_item(
             discord.ui.Button(
                 label=f"This interaction has timed out. Use {self.ctx.prefix}{self.ctx.command} for a new one.",
@@ -492,11 +494,18 @@ class DrawButtons(discord.ui.View):
                 disabled=True,
             )
         )
-        self.clear_cursors()
         embed = self.embed
         await self.response.edit(embed=embed, view=self)
         self.stop()
 
+    def stop_board(self):
+        selectmenu = self.children[0]
+        selectmenu.disabled = True
+
+        self.clear_items()
+        self.add_item(selectmenu)
+        self.clear_cursors()
+        
     def cursor_conv(self, row_key):
         row = conv[row_key] - self.cursor_row
         return row
@@ -507,26 +516,29 @@ class DrawButtons(discord.ui.View):
     def draw_cursor(self, row: Optional[int] = None, col: Optional[int] = None):
         try:
             self.board[
-                row if row else self.cursor_row, col if col else self.cursor_col
-            ] = get_cursor[self.board[row if row else self.cursor_row, col if col else self.cursor_col]]
+                row if row is not None else self.cursor_row, col if col is not None else self.cursor_col
+            ] = get_cursor[
+                self.board[
+                    row if row is not None else self.cursor_row, col if col is not None else self.cursor_col
+                ]
+            ]
         except KeyError:
             pass
 
     def clear_cursors(self):
-        for cell_tuple in self.cells:
-            try:
-                self.board[cell_tuple] = self.un_cursor(self.board[cell_tuple])
-            except KeyError:
-                continue
+        for x, row in enumerate(self.board):
+            for y, _ in enumerate(row):
+                cell_tuple = (x, y)
+                try:
+                    self.board[cell_tuple] = self.un_cursor(self.board[cell_tuple])
+                except KeyError:
+                    continue
         self.cells = [(self.cursor_row, self.cursor_col)]
 
     async def move_cursor(
         self, interaction: discord.Interaction, row_move: int = 0, col_move: int = 0
     ):
-        if self.fill is not True:
-            self.board[self.cursor_row, self.cursor_col] = self.un_cursor(
-                self.board[self.cursor_row, self.cursor_col]
-            )
+        self.clear_cursors()
         self.cursor_row += (
             row_move if self.cursor_row + row_move <= self.cursor_row_max else 0
         )
@@ -540,7 +552,6 @@ class DrawButtons(discord.ui.View):
             self.final_row = self.final_cell[0]
             self.final_col = self.final_cell[1]
 
-            self.clear_cursors()
             self.cells = [
                 (row, col)
                 for col in range(
@@ -581,7 +592,7 @@ class DrawButtons(discord.ui.View):
     )
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        self.clear_cursors()
+        self.stop_board()
         embed = self.embed
         await interaction.edit_original_message(embed=embed, view=None)
         self.stop()
