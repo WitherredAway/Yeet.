@@ -231,8 +231,8 @@ class AddedEmoji:
         self.emoji = emoji
 
     @classmethod
-    def from_option(cls, option: discord.SelectOption):
-        return cls(status="", name=option.label, emoji=option.value)
+    def from_option(cls, option: discord.SelectOption, *, status: Optional[str] = ""):
+        return cls(status=status, name=option.label, emoji=option.value)
 
 
 class DrawSelectMenu(discord.ui.Select):
@@ -277,7 +277,7 @@ class DrawSelectMenu(discord.ui.Select):
 
             unicode_emojis = list(emojis.get(msg.content))
             custom_emojis = list(re.findall(r"<a?:[a-zA-Z0-9_]+:\d+>", msg.content))
-            emoji_ids = list(map(lambda n: f"{n}:{n}", re.findall(r"[^:]\d+[^>]", msg.content)))
+            emoji_ids = list(map(lambda n: f"{n}:{n}", re.findall(r'(?<![\:\d])(\d+)', msg.content)))
             
             sent_emojis = unicode_emojis + custom_emojis + emoji_ids
             added_emojis = {}
@@ -291,26 +291,25 @@ class DrawSelectMenu(discord.ui.Select):
                 if emoji in [opt.value for opt in select.options]:
                     added_emojis[sent_emoji] = AddedEmoji(status="Already exists", name=emoji_check.name, emoji=emoji)
                     continue
-                if len(select.options) + len([e for e in added_emojis.values() if e.status == "Added"]) >= 25:
-                    try:
-                        replaced = list(added_emojis.items())[0]
-                        added_emojis = {k: v for k, v in list(added_emojis.items())[1:]}
-                    except KeyError:
-                        replaced_emoji = AddedEmoji.from_option(select.options.pop(-1))
-                        replaced = (replaced_emoji.emoji, replaced_emoji)
-                    added_emojis[replaced[0]] = AddedEmoji(status="Replaced because limit reached", name=replaced[1].name, emoji=replaced[1].emoji)
-
-                added_emojis[sent_emoji] = AddedEmoji(status="Added", name=emoji_check.name, emoji=emoji)
                 
+                added_emojis[sent_emoji] = AddedEmoji(status="Added", name=emoji_check.name, emoji=emoji)
+
+            replaced_emojis = {}
             for sent_emoji, added_emoji in added_emojis.items():
                 if added_emoji.status == "Added":
+                    if len(select.options) == 25:
+                        replaced = select.options.pop(-1)
+                        replaced_emoji = replaced.value.replace("_", replaced.label)
+                        replaced_emojis[replaced_emoji] = AddedEmoji.from_option(replaced, status="Replaced because limit reached")
+                        added_emoji.status = f"Added, replacing {replaced_emoji}"
                     option = discord.SelectOption(label=added_emoji.name, emoji=added_emoji.emoji, value=added_emoji.emoji)
                     select.append_option(option)
+            added_emojis.update(replaced_emojis)
     
             if len(select.options[10:]) > 0:
                 self.view.cursor = select.options[-1].value
                 self.placeholder = select.options[-1].label 
-            response = [f"{added_emoji.emoji}: {added_emoji.status}" for sent_emoji, added_emoji in added_emojis.items()]
+            response = [f"{sent_emoji}: {added_emoji.status}" for sent_emoji, added_emoji in added_emojis.items()]
             
             try:
                 await interaction.edit_original_message(view=self.view)
