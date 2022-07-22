@@ -218,7 +218,11 @@ class Draw(commands.Cog):
         except KeyError:
             pass
         options = discord.ui.View.from_message(message, timeout=0).children[0].options
-        view = DrawButtons(bg, board, row_list, col_list, ctx=ctx, selectmenu_options=options)
+        view = DrawButtons(
+            bg, board, row_list, col_list, ctx=ctx, selectmenu_options=options
+        )
+        view.clear_cursors()
+        view.draw_cursor()
 
         response = await ctx.send(embed=view.embed, view=view)
         view.response = response
@@ -226,7 +230,14 @@ class Draw(commands.Cog):
 
 
 class AddedEmoji:
-    def __init__(self, *, status: str, emoji: discord.PartialEmoji, name: Optional[str] = None, sent_emoji: Optional[str] = None):
+    def __init__(
+        self,
+        *,
+        status: str,
+        emoji: discord.PartialEmoji,
+        name: Optional[str] = None,
+        sent_emoji: Optional[str] = None,
+    ):
         self.status = status
         self.emoji = emoji
         self.original_name = emoji.name
@@ -236,7 +247,7 @@ class AddedEmoji:
 
     def __str__(self):
         return str(self.emoji)
-        
+
     @property
     def id(self):
         return self.emoji.id
@@ -246,26 +257,38 @@ class AddedEmoji:
         self.emoji.id = value
 
     @classmethod
-    def from_option(cls, option: discord.SelectOption, *, status: Optional[str] = "", sent_emoji: str):
+    def from_option(
+        cls,
+        option: discord.SelectOption,
+        *,
+        status: Optional[str] = "",
+        sent_emoji: str,
+    ):
         return cls(status=status, emoji=option.emoji, sent_emoji=sent_emoji)
 
 
 class DrawSelectMenu(discord.ui.Select):
     def __init__(self, *, options: Optional[typing.List[discord.SelectOption]] = None):
-        options = options if options else [
-            discord.SelectOption(label="Red", emoji="🟥", value="🔴"),
-            discord.SelectOption(label="Orange", emoji="🟧", value="🟠"),
-            discord.SelectOption(label="Yellow", emoji="🟨", value="🟡"),
-            discord.SelectOption(label="Green", emoji="🟩", value="🟢"),
-            discord.SelectOption(label="Blue", emoji="🟦", value="🔵"),
-            discord.SelectOption(label="Purple", emoji="🟪", value="🟣"),
-            discord.SelectOption(label="Brown", emoji="🟫", value="🟤"),
-            discord.SelectOption(label="Black", emoji="⬛", value="⚫"),
-            discord.SelectOption(label="White", emoji="⬜", value="⚪"),
-            discord.SelectOption(
-                label="Add Emoji", emoji="<:emojismiley:920902406336815104>", value="emoji"
-            ),
-        ]
+        options = (
+            options
+            if options
+            else [
+                discord.SelectOption(label="Red", emoji="🟥", value="🔴"),
+                discord.SelectOption(label="Orange", emoji="🟧", value="🟠"),
+                discord.SelectOption(label="Yellow", emoji="🟨", value="🟡"),
+                discord.SelectOption(label="Green", emoji="🟩", value="🟢"),
+                discord.SelectOption(label="Blue", emoji="🟦", value="🔵"),
+                discord.SelectOption(label="Purple", emoji="🟪", value="🟣"),
+                discord.SelectOption(label="Brown", emoji="🟫", value="🟤"),
+                discord.SelectOption(label="Black", emoji="⬛", value="⚫"),
+                discord.SelectOption(label="White", emoji="⬜", value="⚪"),
+                discord.SelectOption(
+                    label="Add Emoji",
+                    emoji="<:emojismiley:920902406336815104>",
+                    value="emoji",
+                ),
+            ]
+        )
         super().__init__(
             placeholder="🎨 Palette",
             min_values=1,
@@ -288,12 +311,16 @@ class DrawSelectMenu(discord.ui.Select):
             try:
                 msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
             except asyncio.TimeoutError:
-                return await interaction.followup.edit_message(resp.id, content="Timed out.")
+                return await interaction.followup.edit_message(
+                    resp.id, content="Timed out."
+                )
 
             unicode_emojis = list(emojis.get(msg.content))
             custom_emojis = list(re.findall(r"<a?:[a-zA-Z0-9_]+:\d+>", msg.content))
-            emoji_ids = list(map(lambda n: f"{n}:{n}", re.findall(r'(?<![\:\d])(\d+)', msg.content)))
-            
+            emoji_ids = list(
+                map(lambda n: f"{n}:{n}", re.findall(r"(?<![\:\d])(\d+)", msg.content))
+            )
+
             sent_emojis = unicode_emojis + custom_emojis + emoji_ids
             added_emojis = {}
             for num, sent_emoji in enumerate(sent_emojis):
@@ -301,63 +328,102 @@ class DrawSelectMenu(discord.ui.Select):
                 emoji = copy.copy(emoji_check)
 
                 emoji_identifier = emoji.id if emoji.id else emoji.name
-                existing_emojis = [(em.id if em.id else em.name) for em in [opt.emoji for opt in select.options]]
+                existing_emojis = [
+                    (em.id if em.id else em.name)
+                    for em in [opt.emoji for opt in select.options]
+                ]
                 if emoji_identifier in existing_emojis:
                     # This list comprehension mess checks if the emoji
                     # you're trying to add already exists in the options
-                    # of the select menu. It uses the emoji's ID if it's 
+                    # of the select menu. It uses the emoji's ID if it's
                     # a custom emoji, otherwise it uses the name which is
                     # the unicode emoji to see if it already exists in an option
 
-                    added_emojis[emoji_identifier] = AddedEmoji(status="Already exists", emoji=emoji, sent_emoji=sent_emoji)
+                    added_emojis[emoji_identifier] = AddedEmoji(
+                        status="Already exists", emoji=emoji, sent_emoji=sent_emoji
+                    )
                     continue
-                
-                added_emojis[emoji_identifier] = AddedEmoji(status="Added", emoji=emoji, name="_" if emoji.is_custom_emoji() else emoji.name, sent_emoji=sent_emoji)
+
+                added_emojis[emoji_identifier] = AddedEmoji(
+                    status="Added",
+                    emoji=emoji,
+                    name="_" if emoji.is_custom_emoji() else emoji.name,
+                    sent_emoji=sent_emoji,
+                )
 
             replaced_emojis = {}
             for added_emoji in added_emojis.values():
                 if added_emoji.status != "Added":
                     continue
-                
+
                 if len(select.options) == 25:
                     replaced_option = select.options.pop(10)
                     replaced_emoji = replaced_option.emoji
                     replaced_emoji.name = replaced_option.label
-                    replaced_emojis[replaced_emoji.id if replaced_emoji.id else replaced_emoji.name] = AddedEmoji.from_option(replaced_option, status=f"Replaced (by {added_emoji}) because limit reached", sent_emoji=replaced_emoji)
+                    replaced_emojis[
+                        replaced_emoji.id if replaced_emoji.id else replaced_emoji.name
+                    ] = AddedEmoji.from_option(
+                        replaced_option,
+                        status=f"Replaced (by {added_emoji}) because limit reached",
+                        sent_emoji=replaced_emoji,
+                    )
                     added_emoji.status = f"Added (replaced {replaced_emoji})"
-                
-                option = discord.SelectOption(label=added_emoji.original_name, emoji=added_emoji.emoji, value=str(added_emoji.emoji))
+
+                option = discord.SelectOption(
+                    label=added_emoji.original_name,
+                    emoji=added_emoji.emoji,
+                    value=str(added_emoji.emoji),
+                )
                 select.append_option(option)
-            
+
             added_emojis.update(replaced_emojis)
-    
+
             if len(select.options[10:]) > 0:
                 self.view.cursor = select.options[-1].value
-                self.placeholder = select.options[-1].label 
-            
-            response = [f"%s - {added_emoji.status}" % (f"{added_emoji.emoji} ({added_emoji.id})" if added_emoji.sent_emoji in emoji_ids else added_emoji.emoji) for added_emoji in added_emojis.values()]
-            
+                self.placeholder = select.options[-1].label
+
+            response = [
+                f"%s - {added_emoji.status}"
+                % (
+                    f"{added_emoji.emoji} ({added_emoji.id})"
+                    if added_emoji.sent_emoji in emoji_ids
+                    else added_emoji.emoji
+                )
+                for added_emoji in added_emojis.values()
+            ]
+
             try:
                 await interaction.edit_original_message(view=self.view)
             except discord.HTTPException as error:
                 await interaction.followup.send(content=error)
                 raise error
             await msg.delete()
-            await interaction.followup.edit_message(resp.id, content="\n".join(response) if len(response) else "Aborted")
+            await interaction.followup.edit_message(
+                resp.id, content="\n".join(response) if len(response) else "Aborted"
+            )
         else:
             self.view.cursor = select.values[0]
             self.placeholder = self.view.cursor
 
 
 class DrawButtons(discord.ui.View):
-    def __init__(self, bg, board, row_list, col_list, *, ctx: commands.Context, selectmenu_options: Optional[typing.List[discord.SelectOption]] = None):
+    def __init__(
+        self,
+        bg,
+        board,
+        row_list,
+        col_list,
+        *,
+        ctx: commands.Context,
+        selectmenu_options: Optional[typing.List[discord.SelectOption]] = None,
+    ):
         super().__init__(timeout=600)
         children = self.children.copy()
         self.clear_items()
         self.add_item(DrawSelectMenu(options=selectmenu_options))
         for item in children:
             self.add_item(item)
-        
+
         self.bg = bg
         self.initial_board = board
         self.board = self.initial_board.copy()
@@ -486,7 +552,7 @@ class DrawButtons(discord.ui.View):
                     max(self.initial_row, self.final_row) + 1,
                 )
             ]
-            
+
         if self.auto is True:
             await self.edit_draw(interaction, self.cursor)
 
