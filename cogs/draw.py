@@ -217,7 +217,8 @@ class Draw(commands.Cog):
             ]
         except KeyError:
             pass
-        view = DrawButtons(bg, board, row_list, col_list, ctx=ctx)
+        options = discord.ui.View.from_message(message, timeout=0).children[0].options
+        view = DrawButtons(bg, board, row_list, col_list, ctx=ctx, selectmenu_options=options)
 
         response = await ctx.send(embed=view.embed, view=view)
         view.response = response
@@ -250,8 +251,8 @@ class AddedEmoji:
 
 
 class DrawSelectMenu(discord.ui.Select):
-    def __init__(self):
-        options = [
+    def __init__(self, *, options: Optional[typing.List[discord.SelectOption]] = None):
+        options = options if options else [
             discord.SelectOption(label="Red", emoji="🟥", value="🔴"),
             discord.SelectOption(label="Orange", emoji="🟧", value="🟠"),
             discord.SelectOption(label="Yellow", emoji="🟨", value="🟡"),
@@ -349,11 +350,11 @@ class DrawSelectMenu(discord.ui.Select):
 
 
 class DrawButtons(discord.ui.View):
-    def __init__(self, bg, board, row_list, col_list, *, ctx: commands.Context):
+    def __init__(self, bg, board, row_list, col_list, *, ctx: commands.Context, selectmenu_options: Optional[typing.List[discord.SelectOption]] = None):
         super().__init__(timeout=600)
         children = self.children.copy()
         self.clear_items()
-        self.add_item(DrawSelectMenu())
+        self.add_item(DrawSelectMenu(options=selectmenu_options))
         for item in children:
             self.add_item(item)
         
@@ -413,7 +414,11 @@ class DrawButtons(discord.ui.View):
         return True
 
     async def on_timeout(self):
+        selectmenu = self.children[0]
+        selectmenu.disabled = True
+
         self.clear_items()
+        self.add_item(selectmenu)
         self.add_item(
             discord.ui.Button(
                 label=f"This interaction has timed out. Use {self.ctx.prefix}{self.ctx.command} for a new one.",
