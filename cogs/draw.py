@@ -2,9 +2,9 @@ import asyncio
 import typing
 from typing import Optional, Union, Literal
 import re
-from dataclasses import dataclass 
+import copy
 
-from emoji import UNICODE_EMOJI
+
 import emojis
 import numpy as np
 import discord
@@ -225,14 +225,33 @@ class Draw(commands.Cog):
 
 
 class AddedEmoji:
-    def __init__(self, *, status: str, name: str, emoji: str):
+    def __init__(self, *, status: str, emoji: discord.PartialEmoji, sent_emoji: Optional[str] = None):
         self.status = status
-        self.name = name
         self.emoji = emoji
+        self.sent_emoji = sent_emoji
+
+    def __str__(self):
+        return str(self.emoji)
+        
+    @property
+    def name(self):
+        return self.emoji.name
+
+    @name.setter
+    def name(self, value: str):
+        self.emoji.name = value
+
+    @property
+    def id(self):
+        return self.emoji.id
+
+    @id.setter
+    def id(self, value: int):
+        self.emoji.id = value
 
     @classmethod
-    def from_option(cls, option: discord.SelectOption, *, status: Optional[str] = ""):
-        return cls(status=status, name=option.label, emoji=option.value)
+    def from_option(cls, option: discord.SelectOption, *, status: Optional[str] = "", sent_emoji: str):
+        return cls(status=status, emoji=option.emoji, sent_emoji=sent_emoji)
 
 
 class DrawSelectMenu(discord.ui.Select):
@@ -283,42 +302,44 @@ class DrawSelectMenu(discord.ui.Select):
             added_emojis = {}
             for num, sent_emoji in enumerate(sent_emojis):
                 emoji_check = discord.PartialEmoji.from_str(sent_emoji)
-                if emoji_check.is_unicode_emoji():
-                    emoji = emoji_check.name
-                else:
-                    emoji = f"<{'a' if emoji_check.animated else ''}:_:{emoji_check.id}>"
+                emoji = copy.copy(emoji_check)
+                if emoji.is_custom_emoji():
+                    emoji.name = "_"
                 
                 if emoji in [opt.value for opt in select.options]:
-                    added_emojis[sent_emoji] = AddedEmoji(status="Already exists", name=emoji_check.name, emoji=emoji)
+                    added_emojis[emoji.id if emoji.id else emoji.name] = AddedEmoji(status="Already exists", emoji=emoji, sent_emoji=sent_emoji)
                     continue
                 
-                added_emojis[sent_emoji] = AddedEmoji(status="Added", name=emoji_check.name, emoji=emoji)
+                added_emojis[emoji.id if emoji.id else emoji.name] = AddedEmoji(status="Added", emoji=emoji, sent_emoji=sent_emoji)
 
             replaced_emojis = {}
-            for sent_emoji, added_emoji in added_emojis.items():
-                if added_emoji.status == "Added":
-                    if len(select.options) == 25:
-                        replaced = select.options.pop(-1)
-                        replaced_emoji = replaced.value.replace("_", replaced.label)
-                        replaced_emojis[replaced_emoji] = AddedEmoji.from_option(replaced, status="Replaced because limit reached")
-                        added_emoji.status = f"Added, replacing {replaced_emoji}"
-                    option = discord.SelectOption(label=added_emoji.name, emoji=added_emoji.emoji, value=added_emoji.emoji)
-                    select.append_option(option)
+            for added_emoji in added_emojis.values():
+                if added_emoji.status != "Added":
+                    continue
+                
+                if len(select.options) == 25:
+                    replaced_option = select.options.pop(10)
+                    replaced_emoji = replaced_option.emoji
+                    replaced_emoji.name = replaced_option.label
+                    replaced_emojis[replaced_emoji.id if replaced_emoji.id else replaced_emoji.name] = AddedEmoji.from_option(replaced_option, status=f"Replaced (by {added_emoji}) because limit reached", sent_emoji=replaced_emoji)
+                    added_emoji.status = f"Added (replaced {replaced_emoji})"
+                
+                option = discord.SelectOption(label=added_emoji.name, emoji=added_emoji.emoji, value=str(added_emoji.emoji))
+                select.append_option(option)
+            
             added_emojis.update(replaced_emojis)
     
             if len(select.options[10:]) > 0:
                 self.view.cursor = select.options[-1].value
                 self.placeholder = select.options[-1].label 
-            response = [f"{sent_emoji}: {added_emoji.status}" for sent_emoji, added_emoji in added_emojis.items()]
+            
+            response = [f"{added_emoji.sent_emoji}: {added_emoji.status}" for added_emoji in added_emojis.values()]
             
             try:
                 await interaction.edit_original_message(view=self.view)
             except discord.HTTPException as error:
                 await interaction.followup.send(content=error)
                 raise error
-                # error_msg = error.text.split(": ")[-1]
-                # await interaction.edit_original_message(view=self.view)
-                # await asyncio.sleep(0.5)
             await msg.delete()
             await interaction.followup.edit_message(resp.id, content="\n".join(response) if len(response) else "Aborted")
         else:
