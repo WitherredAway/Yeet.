@@ -4,52 +4,58 @@ from typing import Optional, Union, Literal
 import re
 import copy
 
-
 import emojis
 import numpy as np
 import discord
 from discord.ext import commands, tasks
 from .utils.utils import invert_dict
 
-ROW_ICONS = (
-    "🇦",
-    "🇧",
-    "🇨",
-    "🇩",
-    "🇪",
-    "🇫",
-    "🇬",
-    "🇭",
-    "🇮",
-    "🇯",
-    "🇰",
-    "🇱",
-    "🇲",
-    "🇳",
-    "🇴",
-    "🇵",
-    "🇶",
-)
+from constants import u200b
 
-COLUMN_ICONS = (
-    "0️⃣",
-    "1️⃣",
-    "2️⃣",
-    "3️⃣",
-    "4️⃣",
-    "5️⃣",
-    "6️⃣",
-    "7️⃣",
-    "8️⃣",
-    "9️⃣",
-    "🔟",
-    "<:11:920679053688725596>",
-    "<:12:920679079756300339>",
-    "<:13:920679103332495430>",
-    "<:14:920679132260618260>",
-    "<:15:920679200854253578>",
-    "<:16:920679238414266408>",
-)
+
+ROW_ICONS_DICT = {
+    "🇦": "<:aa:799628816846815233>",
+    "🇧": "<:bb:799628882713509891>",
+    "🇨": "<:cc:799620822716383242>",
+    "🇩": "<:dd:799621070319255572>",
+    "🇪": "<:ee:799621103030894632>",
+    "🇫": "<:ff:799621133174571008>",
+    "🇬": "<:gg:799621170450137098>",
+    "🇭": "<:hh:799621201621811221>",
+    "🇮": "<:ii:799621235226050561>",
+    "🇯": "<:jj:799621266842583091>",
+    "🇰": "<:kk:799621296408887357>",
+    "🇱": "<:ll:799621320408301638>",
+    "🇲": "<:mm:799621344740114473>",
+    "🇳": "<:nn:799621367297343488>",
+    "🇴": "<:oo:799628923260370945>",
+    "🇵": "<:pp:799621387219369985>",
+    "🇶": "<:qq:799621417049260042>"
+}
+
+ROW_ICONS = tuple(ROW_ICONS_DICT.keys())
+
+COLUMN_ICONS_DICT = {
+    "0️⃣": "<:00:1000010892500537437>",
+    "1️⃣": "<:111:1000010893981143040>",
+    "2️⃣": "<:22:1000010895331692555>",
+    "3️⃣": "<:33:1000010896946499614>",
+    "4️⃣": "<:44:1000010898213195937>",
+    "5️⃣": "<:55:1000010899714740224>",
+    "6️⃣": "<:66:1000010901744791653>",
+    "7️⃣": "<:77:1000010902726262857>",
+    "8️⃣": "<:88:1000010904240402462>",
+    "9️⃣": "<:99:1000010905276403773>",
+    "🔟": "<:1010:1000011148537626624>",
+    "<:11:920679053688725596>": "<:1111:1000011153226874930>",
+    "<:12:920679079756300339>": "<:1212:1000011154262851634>",
+    "<:13:920679103332495430>": "<:1313:1000011155391131708>",
+    "<:14:920679132260618260>": "<:1414:1000011156787834970>",
+    "<:15:920679200854253578>": "<:1515:1000011158348120125>",
+    "<:16:920679238414266408>": "<:1616:1000011159623192616>"
+}
+
+COLUMN_ICONS = tuple(COLUMN_ICONS_DICT.keys())
 
 get_cursor = {
     "🟥": "🔴",
@@ -452,19 +458,25 @@ class DrawButtons(discord.ui.View):
     @property
     def embed(self):
         embed = discord.Embed(title=f"{self.ctx.author}'s drawing board.")
-        u200b = "\u200b"
+        
+        cursor_rows = tuple(cell_tuple[0] for cell_tuple in self.cells)
+        cursor_cols = tuple(cell_tuple[1] for cell_tuple in self.cells)
+        row_list = [(row if idx not in cursor_rows else ROW_ICONS_DICT[row]) for idx, row in enumerate(self.row_list)]
+        col_list = [(col if idx not in cursor_cols else COLUMN_ICONS_DICT[col]) for idx, col in enumerate(self.col_list)]
+        
+        # The actual board
         embed.add_field(
-            name=f'{self.bg}  {"".join(self.col_list)}{u200b}',
+            name=f'{self.bg}  {u200b.join(col_list)}',
             value="\n".join(
                 [
-                    f"{self.row_list[idx]}  {u200b.join(cell)}"
+                    f"{row_list[idx]}  {u200b.join(cell)}"
                     for idx, cell in enumerate(self.board)
                 ]
             ),
         )
         embed.add_field(
             name=f'Cursor - {self.cursor}',
-            value=", ".join([ABC[cell_tuple[0]] + str(cell_tuple[1]) for cell_tuple in self.cells])
+            value=", ".join([ABC[cell_tuple[0]] + str(cell_tuple[1]) for cell_tuple in self.cells]) or None
         )
         
         embed.set_footer(
@@ -504,7 +516,7 @@ class DrawButtons(discord.ui.View):
 
         self.clear_items()
         self.add_item(selectmenu)
-        self.clear_cursors()
+        self.clear_cursors(empty=True)
         
     def cursor_conv(self, row_key):
         row = conv[row_key] - self.cursor_row
@@ -525,7 +537,7 @@ class DrawButtons(discord.ui.View):
         except KeyError:
             pass
 
-    def clear_cursors(self):
+    def clear_cursors(self, *, empty: Optional[bool] = False):
         for x, row in enumerate(self.board):
             for y, _ in enumerate(row):
                 cell_tuple = (x, y)
@@ -533,7 +545,19 @@ class DrawButtons(discord.ui.View):
                     self.board[cell_tuple] = self.un_cursor(self.board[cell_tuple])
                 except KeyError:
                     continue
-        self.cells = [(self.cursor_row, self.cursor_col)]
+        self.cells = [(self.cursor_row, self.cursor_col)] if empty is False else []
+
+    async def edit_draw(self, interaction, draw=None, corner=None):
+        if all(cell == draw for cell in self.cells):
+            return
+        if draw is None:
+            draw = self.board[self.cursor_row][self.cursor_col]
+        if corner is None:
+            corner = self.cursor
+        for cell_tuple in self.cells:
+            self.board[cell_tuple[0], cell_tuple[1]] = draw
+        embed = self.embed
+        await interaction.edit_original_message(embed=embed, view=self)
 
     async def move_cursor(
         self, interaction: discord.Interaction, row_move: int = 0, col_move: int = 0
@@ -572,18 +596,6 @@ class DrawButtons(discord.ui.View):
         embed = self.embed
         if self.auto is not True:
             await interaction.edit_original_message(embed=embed)
-
-    async def edit_draw(self, interaction, draw=None, corner=None):
-        if all(cell == draw for cell in self.cells):
-            return
-        if draw is None:
-            draw = self.board[self.cursor_row][self.cursor_col]
-        if corner is None:
-            corner = self.cursor
-        for cell_tuple in self.cells:
-            self.board[cell_tuple[0], cell_tuple[1]] = draw
-        embed = self.embed
-        await interaction.edit_original_message(embed=embed, view=self)
 
     # ------ buttons ------
 
