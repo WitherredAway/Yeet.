@@ -587,7 +587,7 @@ class DrawButtons(discord.ui.View):
         await interaction.response.defer()
         self.stop_board()
         embed = self.embed
-        await interaction.edit_original_message(embed=embed, view=None)
+        await interaction.edit_original_message(embed=embed, view=self)
         self.stop()
 
     @discord.ui.button(
