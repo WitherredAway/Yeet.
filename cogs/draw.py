@@ -30,7 +30,7 @@ ROW_ICONS_DICT = {
     "🇳": "<:nn:799621367297343488>",
     "🇴": "<:oo:799628923260370945>",
     "🇵": "<:pp:799621387219369985>",
-    "🇶": "<:qq:799621417049260042>"
+    "🇶": "<:qq:799621417049260042>",
 }
 
 ROW_ICONS = tuple(ROW_ICONS_DICT.keys())
@@ -52,7 +52,7 @@ COLUMN_ICONS_DICT = {
     "<:13:920679103332495430>": "<:1313:1000011155391131708>",
     "<:14:920679132260618260>": "<:1414:1000011156787834970>",
     "<:15:920679200854253578>": "<:1515:1000011158348120125>",
-    "<:16:920679238414266408>": "<:1616:1000011159623192616>"
+    "<:16:920679238414266408>": "<:1616:1000011159623192616>",
 }
 
 COLUMN_ICONS = tuple(COLUMN_ICONS_DICT.keys())
@@ -302,12 +302,10 @@ class DrawSelectMenu(discord.ui.Select):
                 msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
                 await msg.delete()
             except asyncio.TimeoutError:
-                return await res.edit(
-                    content="Timed out."
-                )
+                return await res.edit(content="Timed out.")
 
             unicode_emojis = list(emojis.get(msg.content))
-            flag_emojis = re.findall(u'[\U0001F1E6-\U0001F1FF]', msg.content)
+            flag_emojis = re.findall("[\U0001F1E6-\U0001F1FF]", msg.content)
             custom_emojis = list(re.findall(r"<a?:[a-zA-Z0-9_]+:\d+>", msg.content))
             emoji_ids = list(
                 map(lambda n: f"{n}:{n}", re.findall(r"(?<![\:\d])(\d+)", msg.content))
@@ -389,9 +387,7 @@ class DrawSelectMenu(discord.ui.Select):
             except discord.HTTPException as error:
                 await interaction.followup.send(content=error)
                 raise error
-            await res.edit(
-                content="\n".join(response) or "Aborted"
-            )
+            await res.edit(content="\n".join(response) or "Aborted")
         else:
             self.view.cursor = select.values[0]
             self.placeholder = self.view.cursor
@@ -443,15 +439,21 @@ class DrawButtons(discord.ui.View):
     @property
     def embed(self):
         embed = discord.Embed(title=f"{self.ctx.author}'s drawing board.")
-        
+
         cursor_rows = tuple(cell_tuple[0] for cell_tuple in self.cells)
         cursor_cols = tuple(cell_tuple[1] for cell_tuple in self.cells)
-        row_list = [(row if idx not in cursor_rows else ROW_ICONS_DICT[row]) for idx, row in enumerate(self.row_list)]
-        col_list = [(col if idx not in cursor_cols else COLUMN_ICONS_DICT[col]) for idx, col in enumerate(self.col_list)]
-        
+        row_list = [
+            (row if idx not in cursor_rows else ROW_ICONS_DICT[row])
+            for idx, row in enumerate(self.row_list)
+        ]
+        col_list = [
+            (col if idx not in cursor_cols else COLUMN_ICONS_DICT[col])
+            for idx, col in enumerate(self.col_list)
+        ]
+
         # The actual board
         embed.add_field(
-            name=f'{self.bg}  {u200b.join(col_list)}',
+            name=f"{self.bg}  {u200b.join(col_list)}",
             value="\n".join(
                 [
                     f"{row_list[idx]}  {u200b.join(cell)}"
@@ -460,10 +462,13 @@ class DrawButtons(discord.ui.View):
             ),
         )
         embed.add_field(
-            name=f'Cursor - {self.cursor}',
-            value=", ".join([ABC[cell_tuple[0]] + str(cell_tuple[1]) for cell_tuple in self.cells]) or None
+            name=f"Cursor - {self.cursor}",
+            value=", ".join(
+                [ABC[cell_tuple[0]] + str(cell_tuple[1]) for cell_tuple in self.cells]
+            )
+            or None,
         )
-        
+
         embed.set_footer(
             text=(
                 f"The board looks wack? Try decreasing its size! Do {self.ctx.clean_prefix}help draw for more info."
@@ -491,8 +496,7 @@ class DrawButtons(discord.ui.View):
                 disabled=True,
             )
         )
-        embed = self.embed
-        await self.response.edit(embed=embed, view=self)
+        await self.response.edit(embed=self.embed, view=self)
         self.stop()
 
     def stop_board(self):
@@ -502,17 +506,19 @@ class DrawButtons(discord.ui.View):
         self.clear_items()
         self.add_item(selectmenu)
         self.clear_cursors(empty=True)
-        
+
     def un_cursor(self, value):
         return self.inv_get_cursor.get(value, value)
 
     def draw_cursor(self, row: Optional[int] = None, col: Optional[int] = None):
         try:
             self.board[
-                row if row is not None else self.cursor_row, col if col is not None else self.cursor_col
+                row if row is not None else self.cursor_row,
+                col if col is not None else self.cursor_col,
             ] = get_cursor[
                 self.board[
-                    row if row is not None else self.cursor_row, col if col is not None else self.cursor_col
+                    row if row is not None else self.cursor_row,
+                    col if col is not None else self.cursor_col,
                 ]
             ]
         except KeyError:
@@ -528,17 +534,14 @@ class DrawButtons(discord.ui.View):
                     continue
         self.cells = [(self.cursor_row, self.cursor_col)] if empty is False else []
 
-    async def edit_draw(self, interaction, draw=None, corner=None):
-        if all(cell == draw for cell in self.cells):
+    async def edit_draw(self, interaction, draw=None):
+        if all(self.board[cell_tuple[0], cell_tuple[1]] == draw for cell_tuple in self.cells):
             return
         if draw is None:
-            draw = self.board[self.cursor_row][self.cursor_col]
-        if corner is None:
-            corner = self.cursor
+            draw = self.board[self.cursor_row, self.cursor_col]
         for cell_tuple in self.cells:
             self.board[cell_tuple[0], cell_tuple[1]] = draw
-        embed = self.embed
-        await interaction.edit_original_message(embed=embed, view=self)
+        await interaction.edit_original_message(embed=self.embed, view=self)
 
     async def move_cursor(
         self, interaction: discord.Interaction, row_move: int = 0, col_move: int = 0
@@ -574,9 +577,9 @@ class DrawButtons(discord.ui.View):
 
         for cell_tuple in self.cells:
             self.draw_cursor(*cell_tuple)
-        embed = self.embed
+
         if self.auto is not True:
-            await interaction.edit_original_message(embed=embed)
+            await interaction.edit_original_message(embed=self.embed)
 
     # ------ buttons ------
 
@@ -586,8 +589,7 @@ class DrawButtons(discord.ui.View):
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         self.stop_board()
-        embed = self.embed
-        await interaction.edit_original_message(embed=embed, view=self)
+        await interaction.edit_original_message(embed=self.embed, view=self)
         self.stop()
 
     @discord.ui.button(
@@ -604,8 +606,7 @@ class DrawButtons(discord.ui.View):
         self.board, _, _ = make_board(self.bg, len(self.col_list), len(self.row_list))
         self.clear_cursors()
         self.draw_cursor()
-        embed = self.embed
-        await interaction.edit_original_message(embed=embed, view=self)
+        await interaction.edit_original_message(embed=self.embed, view=self)
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
     async def placeholder1(
@@ -638,7 +639,6 @@ class DrawButtons(discord.ui.View):
             self.draw_cursor()
             self.fill_bucket.style = discord.ButtonStyle.grey
         await self.edit_draw(interaction)
-        await interaction.edit_original_message(view=self)
 
     @discord.ui.button(label="\u200b", style=discord.ButtonStyle.gray)
     async def placeholder3(
@@ -776,7 +776,7 @@ class DrawButtons(discord.ui.View):
         await interaction.response.defer()
         res = await interaction.followup.send(
             content='Please type the cell you want to move the cursor to. e.g. "A1", "a8", "A10", etc.',
-            ephemeral=True
+            ephemeral=True,
         )
 
         def check(m):
@@ -788,7 +788,7 @@ class DrawButtons(discord.ui.View):
         except asyncio.TimeoutError:
             return await res.edit(content="Timed out.")
         cell = msg.content.upper()
-        
+
         row_key = cell[0]
         col_key = int(cell[1:])
         if (
@@ -799,7 +799,9 @@ class DrawButtons(discord.ui.View):
         row_move = conv[row_key] - self.cursor_row
         col_move = col_key - self.cursor_col
         await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
-        await res.edit(content=f"Moved cursor to **{cell}** ({conv[row_key]}, {col_key})")
+        await res.edit(
+            content=f"Moved cursor to **{cell}** ({conv[row_key]}, {col_key})"
+        )
 
 
 async def setup(bot):
