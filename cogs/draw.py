@@ -273,7 +273,7 @@ class DrawSelectMenu(discord.ui.Select):
                 discord.SelectOption(label="Black", emoji="⬛", value="⚫"),
                 discord.SelectOption(label="White", emoji="⬜", value="⚪"),
                 discord.SelectOption(
-                    label="Add Emoji",
+                    label="Add Emoji(s)",
                     emoji="<:emojismiley:920902406336815104>",
                     value="emoji",
                 ),
@@ -291,7 +291,7 @@ class DrawSelectMenu(discord.ui.Select):
         self.ctx = self.view.ctx
         select = self
         if select.values[0] == "emoji":
-            resp = await interaction.followup.send(
+            res = await interaction.followup.send(
                 content="Please send a message containing the emojis you want to add to your palette. E.g. `😎 I like turtles 🐢`"
             )
 
@@ -300,18 +300,20 @@ class DrawSelectMenu(discord.ui.Select):
 
             try:
                 msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
+                await msg.delete()
             except asyncio.TimeoutError:
-                return await interaction.followup.edit_message(
-                    resp.id, content="Timed out."
+                return await res.edit(
+                    content="Timed out."
                 )
 
             unicode_emojis = list(emojis.get(msg.content))
+            flag_emojis = re.findall(u'[\U0001F1E6-\U0001F1FF]', msg.content)
             custom_emojis = list(re.findall(r"<a?:[a-zA-Z0-9_]+:\d+>", msg.content))
             emoji_ids = list(
                 map(lambda n: f"{n}:{n}", re.findall(r"(?<![\:\d])(\d+)", msg.content))
             )
 
-            sent_emojis = unicode_emojis + custom_emojis + emoji_ids
+            sent_emojis = unicode_emojis + flag_emojis + custom_emojis + emoji_ids
             added_emojis = {}
             for num, sent_emoji in enumerate(sent_emojis):
                 emoji_check = discord.PartialEmoji.from_str(sent_emoji)
@@ -387,9 +389,8 @@ class DrawSelectMenu(discord.ui.Select):
             except discord.HTTPException as error:
                 await interaction.followup.send(content=error)
                 raise error
-            await msg.delete()
-            await interaction.followup.edit_message(
-                resp.id, content="\n".join(response) if len(response) else "Aborted"
+            await res.edit(
+                content="\n".join(response) or "Aborted"
             )
         else:
             self.view.cursor = select.values[0]
