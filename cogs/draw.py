@@ -69,26 +69,6 @@ get_cursor = {
     "⬜": "⚪",
 }
 
-ABC = "ABCDEFGHIJKLMNOPQ"
-NUM = (
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-)
 
 conv = {
     "A": 0,
@@ -109,6 +89,10 @@ conv = {
     "P": 15,
     "Q": 16,
 }
+
+
+ABC = tuple(conv.keys())
+NUM = tuple(conv.values())
 
 
 def make_board(bg: str, height: int, width: int):
@@ -518,10 +502,6 @@ class DrawButtons(discord.ui.View):
         self.add_item(selectmenu)
         self.clear_cursors(empty=True)
         
-    def cursor_conv(self, row_key):
-        row = conv[row_key] - self.cursor_row
-        return row
-
     def un_cursor(self, value):
         return self.inv_get_cursor.get(value, value)
 
@@ -793,8 +773,9 @@ class DrawButtons(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         await interaction.response.defer()
-        res = await self.ctx.send(
-            'Please type the cell you want to move the cursor to. e.g. "A1", "a8", "A10", etc.'
+        res = await interaction.followup.send(
+            content='Please type the cell you want to move the cursor to. e.g. "A1", "a8", "A10", etc.',
+            ephemeral=True
         )
 
         def check(m):
@@ -802,25 +783,22 @@ class DrawButtons(discord.ui.View):
 
         try:
             msg = await self.ctx.bot.wait_for("message", timeout=30, check=check)
+            await msg.delete()
         except asyncio.TimeoutError:
-            return await self.ctx.send("Timed out.")
+            return await res.edit(content="Timed out.")
         cell = msg.content.upper()
-        if len(cell) != 2 and len(cell) != 3:
-            return await self.ctx.send("Min and max length of cell must be 2 and 3")
-
+        
         row_key = cell[0]
-        col_key = cell[1:]
+        col_key = int(cell[1:])
         if (
             row_key not in ABC[: self.cursor_row_max + 1]
             or col_key not in NUM[: self.cursor_col_max + 1]
         ):
-            return await self.ctx.send(f"Invalid cell provided.")
-        row_move = self.cursor_conv(row_key)
-        col_move = int(col_key) - self.cursor_col
+            return await res.edit(content="Aborted.")
+        row_move = conv[row_key] - self.cursor_row
+        col_move = col_key - self.cursor_col
         await self.move_cursor(interaction, row_move=row_move, col_move=col_move)
-        await res.delete()
-        await asyncio.sleep(0.5)
-        await msg.delete()
+        await res.edit(content=f"Moved cursor to **{cell}** ({conv[row_key]}, {col_key})")
 
 
 async def setup(bot):
